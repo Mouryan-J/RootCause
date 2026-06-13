@@ -31,3 +31,17 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# uv
+.python-version
