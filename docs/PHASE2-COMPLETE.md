@@ -7,6 +7,7 @@
 - Agent Workflow (LangGraph state and supervisor decisions)
 - Database Design (four stores, each with a job)
 - Deployment Architecture (dev vs production)
+<img width="568" height="627" alt="image" src="https://github.com/user-attachments/assets/c830e9d7-6d5d-4f72-af14-f5cc0a7fe491" />
 
 ## Key decisions made
 See docs/decisions/ for full ADRs.
