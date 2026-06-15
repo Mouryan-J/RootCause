@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:password@localhost:5432/rootcause"
     )
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def ensure_asyncpg_scheme(cls, v: str) -> str:
+        """Render injects postgresql:// URLs — rewrite to asyncpg scheme."""
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     # Redis
     redis_url: str = Field(default="redis://localhost:6379")
@@ -44,6 +52,9 @@ class Settings(BaseSettings):
     model_triage: str = Field(default="gpt-4o-mini")
     model_agents: str = Field(default="gpt-4o-mini")
     model_rca: str = Field(default="claude-haiku-4-5-20251001")
+
+    # Authentication — leave empty to disable (development default)
+    api_secret_key: str = Field(default="", description="Bearer token required on /incidents/* routes")
 
     # Application
     app_env: str = Field(default="development")

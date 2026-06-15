@@ -1,0 +1,9 @@
+# PM-170 — incident.io
+
+**Company:** incident.io  
+**Category:** Uncategorized  
+**Source:** https://incident.io/blog/clouds-caches-and-connection-conundrums
+
+## Incident Summary
+
+After moving to Google Cloud they saw spikes of Postgres connection timeouts (~200 new connections/s) and memcached "i/o timeout" errors. Pool tuning (15m→30m max lifetime, static pool size, `MaxIdleConns` 2→20) helped each in turn but didn't eliminate the cache errors. The smoking gun was GKE Dataplane V2: bursts of parallel outbound calls (made worse by an accidental N+1 join) saturated the per-node `anetd` agent's CPU, dropping packets between the node and other services running on it.

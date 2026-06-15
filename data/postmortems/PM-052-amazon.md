@@ -1,0 +1,9 @@
+# PM-052 — Amazon
+
+**Company:** Amazon  
+**Category:** Hardware/Power Failures  
+**Source:** https://aws.amazon.com/message/2329B7/
+
+## Incident Summary
+
+An unknown event caused a transformer to fail. One of the PLCs that checks that generator power is in phase failed for an unknown reason, which prevented a set of backup generators from coming online. This affected EC2, EBS, and RDS in EU West.

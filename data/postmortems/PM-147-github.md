@@ -1,0 +1,9 @@
+# PM-147 — GitHub
+
+**Company:** GitHub  
+**Category:** Uncategorized  
+**Source:** https://github.blog/news-insights/the-library/denial-of-service-attacks/
+
+## Incident Summary
+
+Several thousand HTTP requests/second from thousands of IPs hit a crafted URL on port 80 that 301'd to HTTPS, followed by an SSL connection-exhaustion vector. Because GitHub's monitoring keyed on bandwidth rather than packets-per-second, the attack wasn't detected as a DDoS for a while; configuring countermeasures took ~2 hours of downtime.

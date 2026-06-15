@@ -1,0 +1,9 @@
+# PM-008 — Cloudflare
+
+**Company:** Cloudflare  
+**Category:** Config Errors  
+**Source:** https://web.archive.org/web/20221112015610/https://blog.cloudflare.com/partial-cloudflare-outage-on-october-25-2022/
+
+## Incident Summary
+
+A change to our Tiered Cache system caused some requests to fail for users with status code 530. The impact lasted for almost six hours in total. We estimate that about 5% of all requests failed at peak. Because of the complexity of our system and a blind spot in our tests, we did not spot this when the change was released to our test environment.

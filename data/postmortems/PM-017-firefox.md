@@ -1,0 +1,9 @@
+# PM-017 — Firefox
+
+**Company:** Firefox  
+**Category:** Config Errors  
+**Source:** https://web.archive.org/web/20250314111052/https://hacks.mozilla.org/2022/02/retrospective-and-technical-details-on-the-recent-firefox-outage/
+
+## Incident Summary
+
+On January 13th, 2022, a specific code path in Firefox's network stack triggered a problem in the HTTP/3 protocol implementation. This blocked network communication and made Firefox unresponsive, unable to load web content for nearly two hours.

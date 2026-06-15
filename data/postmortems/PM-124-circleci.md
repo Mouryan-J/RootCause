@@ -1,0 +1,9 @@
+# PM-124 — CircleCI
+
+**Company:** CircleCI  
+**Category:** Uncategorized  
+**Source:** https://discuss.circleci.com/t/postmortem-march-26-april-10-workflow-delay-incidents/30060
+
+## Incident Summary
+
+Slow queries on the MongoDB replica sets backing the build queue caused workflows to back up over a two-week run of incidents. A roughly concurrent minor-version JVM upgrade enabled Docker-awareness by default, which silently shrank thread and connection pools across most JVM services and constrained throughput, masking the underlying MongoDB capacity problem. Tuning thread/connection pools and upsizing MongoDB stabilized the platform after multiple cascading outages on March 26, April 2, April 3, and April 10.

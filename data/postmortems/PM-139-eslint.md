@@ -1,0 +1,9 @@
+# PM-139 — ESLint
+
+**Company:** ESLint  
+**Category:** Uncategorized  
+**Source:** https://eslint.org/blog/2018/07/postmortem-for-malicious-package-publishes
+
+## Incident Summary
+
+On July 12th, 2018, an attacker compromised the npm account of an ESLint maintainer and published malicious packages to the npm registry.

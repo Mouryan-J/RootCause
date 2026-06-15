@@ -1,0 +1,9 @@
+# PM-086 — GitHub
+
+**Company:** GitHub  
+**Category:** Database  
+**Source:** https://github.blog/news-insights/company-news/github-availability-report-may-2021/
+
+## Incident Summary
+
+A foreign key on the scoped-tokens table hit max INT32, causing high failure rates for Actions and Pages and breaking scoped-token Git operations for 9h48m. Mitigation required a long-running schema migration to INT64. Linting that would have caught the column predated the column itself; one Action briefly received unauthorized access grants that were then revoked.

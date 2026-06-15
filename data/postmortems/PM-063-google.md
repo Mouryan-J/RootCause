@@ -1,0 +1,9 @@
+# PM-063 — Google
+
+**Company:** Google  
+**Category:** Hardware/Power Failures  
+**Source:** https://status.cloud.google.com/incidents/fmEL9i2fArADKawkZAa2
+
+## Incident Summary
+
+On Tuesday, 19 July 2022 at 06:33 US/Pacific, a simultaneous failure of multiple, redundant cooling systems in one of the data centers that hosts the zone europe-west2-a impacted multiple Google Cloud services. This resulted in some customers experiencing service unavailability for impacted products.

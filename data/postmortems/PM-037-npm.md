@@ -1,0 +1,9 @@
+# PM-037 — NPM
+
+**Company:** NPM  
+**Category:** Config Errors  
+**Source:** https://blog.npmjs.org/post/74949623024/2014-01-28-outage-postmortem.html
+
+## Incident Summary
+
+Fastly configuration change caused backend routing issue. To be exact, the issue is that we were setting the req.backend in a vcl_fetch function, and then calling restart to re-parse the rules. However, calling restart will reset the req.backend to the first backed in the list, which in this case happened to be Manta, rather than the load balanced CouchDB servers.

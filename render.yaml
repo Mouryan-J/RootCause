@@ -1,0 +1,58 @@
+databases:
+  - name: rootcause-db
+    databaseName: rootcause
+    user: rootcause
+    plan: free
+
+services:
+  - type: redis
+    name: rootcause-redis
+    plan: free
+    ipAllowList: []
+
+  - type: web
+    name: rootcause-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rootcause-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rootcause-redis
+          property: connectionString
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+
+      # Secrets — set these in the Render dashboard, not here
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: COHERE_API_KEY
+        sync: false
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: API_SECRET_KEY
+        sync: false
+
+      # Optional external services (Qdrant Cloud, Neo4j Aura)
+      - key: QDRANT_HOST
+        sync: false
+      - key: QDRANT_PORT
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false

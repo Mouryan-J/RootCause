@@ -1,0 +1,9 @@
+# PM-057 — ARPANET
+
+**Company:** ARPANET  
+**Category:** Hardware/Power Failures  
+**Source:** https://datatracker.ietf.org/doc/html/rfc789.html
+
+## Incident Summary
+
+A malfunctioning IMP ([Interface Message Processor](https://en.wikipedia.org/wiki/Interface_Message_Processor)) corrupted routing data, software recomputed checksums propagating bad data with good checksums, incorrect sequence numbers caused buffers to fill, full buffers caused loss of keepalive packets and nodes took themselves off the network. From 1980.
