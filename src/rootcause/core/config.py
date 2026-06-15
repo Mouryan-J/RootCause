@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     model_agents: str = Field(default="gpt-4o-mini")
     model_rca: str = Field(default="claude-haiku-4-5-20251001")
 
+    # CORS — comma-separated list of allowed origins in production
+    cors_origins: str = Field(default="*", description="Comma-separated allowed origins, or * for all")
+
     # Authentication — leave empty to disable (development default)
     api_secret_key: str = Field(default="", description="Bearer token required on /incidents/* routes")
 
