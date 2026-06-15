@@ -3,7 +3,6 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
 
 from rootcause.api.routes import health, incidents
 from rootcause.core.config import get_settings
@@ -70,19 +69,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    origins = (
-        [o.strip() for o in settings.cors_origins.split(",")]
-        if settings.cors_origins != "*"
-        else ["*"]
-    )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -99,6 +85,21 @@ def create_app() -> FastAPI:
             path=request.url.path,
             status=response.status_code,
         )
+        return response
+
+    @app.middleware("http")
+    async def cors_middleware(request: Request, call_next) -> Response:
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                },
+            )
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
         return response
 
     app.include_router(health.router)
