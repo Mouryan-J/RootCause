@@ -60,33 +60,51 @@ Results stream back in real time via polling. All past incidents are browsable i
 
 ## Architecture
 
-```
-Browser (Next.js on Vercel)
-        │
-        ▼
-FastAPI backend (Render)
-        │
-   ┌────┴────────────────────────────┐
-   │         LangGraph pipeline      │
-   │                                 │
-   │  ┌──────────┐  ┌────────────┐  │
-   │  │  Triage  │→ │ Retrieval  │  │
-   │  └──────────┘  └─────┬──────┘  │
-   │                       │        │
-   │              BM25 + Qdrant     │
-   │              + Cohere rerank   │
-   │                       │        │
-   │                  ┌────▼──────┐ │
-   │                  │    RCA    │ │
-   │                  └────┬──────┘ │
-   │                       │        │
-   │               ┌───────▼─────┐  │
-   │               │ Remediation │  │
-   │               └─────────────┘  │
-   └─────────────────────────────────┘
-        │                │
-   PostgreSQL          Qdrant Cloud
-   (incidents)         (runbook vectors)
+```mermaid
+flowchart TD
+    User(["👤 User\nNext.js · Vercel"])
+
+    subgraph API["FastAPI Backend · Render"]
+        direction TB
+        GW["API Gateway\nCORS · Auth · Logging"]
+
+        subgraph LG["LangGraph Pipeline"]
+            direction TB
+            CO["Coordinator"]
+            TR["Triage\ngpt-4o-mini"]
+            RT["Retrieval\nBM25 + Qdrant + Cohere"]
+            RC["RCA\nclaude-haiku"]
+            RM["Remediation\ngpt-4o-mini"]
+
+            CO --> TR --> CO
+            CO --> RT --> CO
+            CO --> RC --> CO
+            CO --> RM --> CO
+        end
+
+        GW --> LG
+    end
+
+    subgraph DBs["Data Layer"]
+        PG[("PostgreSQL\nIncident records")]
+        RD[("Redis\nResult cache")]
+        QD[("Qdrant Cloud\nRunbook vectors")]
+        N4[("Neo4j Aura\nService graph")]
+    end
+
+    subgraph OBS["Observability"]
+        LF["Langfuse\nLLM tracing"]
+    end
+
+    User -- "POST /incidents/analyze" --> GW
+    RT -- "BM25 + vector search" --> QD
+    RT -- "Service dependencies" --> N4
+    LG -- "Store result" --> PG
+    LG -- "Cache result" --> RD
+    LG -- "Trace LLM calls" --> LF
+    GW -- "GET /incidents/:id" --> PG
+    GW -- "GET /incidents/:id (cached)" --> RD
+    API -- "Results + graph" --> User
 ```
 
 ---
