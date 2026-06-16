@@ -22,16 +22,18 @@ You are an expert site reliability engineer performing root cause analysis.
 
 You will be given:
 1. An incident description with symptoms, logs, and metrics
-2. A set of retrieved runbooks and postmortems that may be relevant
+2. Service dependency graph context (what the affected service depends on, and what depends on it)
+3. A set of retrieved runbooks and postmortems that may be relevant
 
 Your task:
 - Identify 1-3 most likely root causes, ordered by confidence
 - For each root cause provide: a clear description, a confidence score (0.0-1.0), \
 and 2-4 pieces of evidence drawn from the incident details or retrieved documents
+- Consider whether the root cause may be in an upstream dependency rather than the service itself
 - List up to 5 contributing factors (conditions that made the incident worse but \
 were not the primary cause)
 
-Be specific and cite exact error messages, metrics, or runbook IDs as evidence."""
+Be specific and cite exact error messages, metrics, runbook IDs, or dependency names as evidence."""
 
 
 class RootCauseItem(BaseModel):
@@ -114,6 +116,18 @@ def rca_node(state: IncidentState) -> dict:
             incident_text += f"\nLogs:\n{state['logs'][:2000]}\n"
         if state.get("metrics"):
             incident_text += f"\nMetrics: {state['metrics']}\n"
+
+        graph = state.get("service_graph") or {}
+        depends_on = graph.get("depends_on") or []
+        depended_on_by = graph.get("depended_on_by") or []
+        if depends_on or depended_on_by:
+            incident_text += "\n## Service Dependency Graph\n"
+            if depends_on:
+                deps = ", ".join(f"{d['name']} ({d['dep_type']})" for d in depends_on)
+                incident_text += f"{state.get('service')} depends on: {deps}\n"
+            if depended_on_by:
+                callers = ", ".join(f"{d['name']}" for d in depended_on_by)
+                incident_text += f"Services that depend on {state.get('service')}: {callers}\n"
 
         incident_text += f"\n## Retrieved Documents\n{_format_docs(docs)}"
 

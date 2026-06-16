@@ -27,6 +27,7 @@ class IncidentState(TypedDict, total=False):
 
     # ── Retrieval output ──────────────────────────────────────────────────────
     retrieved_docs: list[dict]
+    service_graph: dict   # {depends_on: [...], depended_on_by: [...]}
 
     # ── RCA output ────────────────────────────────────────────────────────────
     root_causes: list[dict]         # [{description, confidence, evidence: []}]

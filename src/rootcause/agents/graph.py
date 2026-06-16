@@ -96,6 +96,7 @@ async def run_analysis(
         "key_signals": [],
         "search_query": "",
         "retrieved_docs": [],
+        "service_graph": {"depends_on": [], "depended_on_by": []},
         "root_causes": [],
         "contributing_factors": [],
         "remediation_steps": [],
