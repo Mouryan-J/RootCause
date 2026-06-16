@@ -26,6 +26,16 @@ export interface RootCause {
   evidence: string[]
 }
 
+export interface IncidentListItem {
+  incident_id: string
+  title: string
+  service: string
+  severity: Severity
+  status: AnalysisStatus
+  created_at: string
+  completed_at?: string
+}
+
 export interface AnalysisResult {
   incident_id: string
   status: AnalysisStatus

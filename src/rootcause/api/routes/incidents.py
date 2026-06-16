@@ -1,12 +1,14 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from sqlalchemy import select
 
 from rootcause.agents.graph import run_analysis
 from rootcause.api.schemas.incident import (
     AnalysisResult,
     AnalysisStatus,
+    IncidentListItem,
     IncidentRequest,
     IncidentResponse,
     RootCause,
@@ -94,6 +96,25 @@ async def _run_and_store(incident_id: uuid.UUID, request: IncidentRequest) -> No
             if incident:
                 incident.status = AnalysisStatus.failed
                 incident.completed_at = datetime.now(UTC)
+
+
+@router.get("/", response_model=list[IncidentListItem], dependencies=[Depends(require_api_key)])
+async def list_incidents(limit: int = Query(default=20, ge=1, le=100)) -> list[IncidentListItem]:
+    async with get_session() as session:
+        stmt = select(Incident).order_by(Incident.created_at.desc()).limit(limit)
+        rows = (await session.execute(stmt)).scalars().all()
+    return [
+        IncidentListItem(
+            incident_id=row.id,
+            title=row.title,
+            service=row.service,
+            severity=row.severity,
+            status=AnalysisStatus(row.status),
+            created_at=row.created_at,
+            completed_at=row.completed_at,
+        )
+        for row in rows
+    ]
 
 
 @router.post("/analyze", response_model=IncidentResponse, status_code=202, dependencies=[Depends(require_api_key)])

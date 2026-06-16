@@ -1,4 +1,4 @@
-import type { AnalysisResult, IncidentRequest, IncidentResponse } from '@/types/incident'
+import type { AnalysisResult, IncidentListItem, IncidentRequest, IncidentResponse } from '@/types/incident'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
@@ -19,6 +19,18 @@ export async function submitIncident(data: IncidentRequest): Promise<IncidentRes
     throw new Error(`Submit failed (${res.status}): ${text}`)
   }
   return res.json() as Promise<IncidentResponse>
+}
+
+export async function listIncidents(limit = 20): Promise<IncidentListItem[]> {
+  const res = await fetch(`${BASE_URL}/incidents/?limit=${limit}`, {
+    cache: 'no-store',
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Fetch failed (${res.status}): ${text}`)
+  }
+  return res.json() as Promise<IncidentListItem[]>
 }
 
 export async function getIncident(id: string): Promise<AnalysisResult> {

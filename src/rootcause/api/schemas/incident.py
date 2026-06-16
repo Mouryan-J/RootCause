@@ -56,3 +56,13 @@ class AnalysisResult(BaseModel):
     summary: str | None = None
     runbooks_referenced: list[str] = []
     model_used: str | None = None
+
+
+class IncidentListItem(BaseModel):
+    incident_id: uuid.UUID
+    title: str
+    service: str
+    severity: Severity
+    status: AnalysisStatus
+    created_at: datetime
+    completed_at: datetime | None = None
