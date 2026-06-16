@@ -5,6 +5,7 @@ embeddings are unavailable.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -30,7 +31,6 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _rrf(rankings: list[list[int]], k: int = 60) -> list[tuple[int, float]]:
-    """Reciprocal Rank Fusion over multiple ranked doc-index lists."""
     scores: dict[int, float] = {}
     for ranking in rankings:
         for rank, idx in enumerate(ranking):
@@ -39,19 +39,28 @@ def _rrf(rankings: list[list[int]], k: int = 60) -> list[tuple[int, float]]:
 
 
 def _cohere_embed(texts: list[str], api_key: str, input_type: str = "search_document") -> list[list[float]] | None:
-    """Generate embeddings via Cohere API. Returns None on failure."""
     try:
         import cohere
         co = cohere.Client(api_key=api_key)
-        response = co.embed(
-            texts=texts,
-            model="embed-english-v3.0",
-            input_type=input_type,
-        )
+        response = co.embed(texts=texts, model="embed-english-v3.0", input_type=input_type)
         return response.embeddings
     except Exception as exc:
         log.warning("cohere_embed_failed: %s", exc)
         return None
+
+
+def _run_async(coro):
+    """Run an async coroutine safely from any thread."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
 
 
 class HybridRetriever:
@@ -76,20 +85,19 @@ class HybridRetriever:
     def _try_init_vectors(self) -> None:
         try:
             from rootcause.core.config import get_settings
-            from rootcause.db.qdrant_client import get_qdrant
+            from qdrant_client import QdrantClient
+            from qdrant_client.models import Distance, PointStruct, VectorParams
 
             settings = get_settings()
-            qdrant = get_qdrant()
-            if qdrant is None or not settings.cohere_api_key:
-                log.info("Qdrant or Cohere key unavailable — using BM25 only")
+            if not settings.qdrant_url or not settings.cohere_api_key:
+                log.info("Qdrant URL or Cohere key missing — using BM25 only")
                 return
 
             self._cohere_api_key = settings.cohere_api_key
 
-            # Check if collection already exists and has vectors
-            import asyncio
-            loop = asyncio.get_event_loop()
-            collections = loop.run_until_complete(qdrant.get_collections())
+            # Use sync client in background thread
+            client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None)
+            collections = client.get_collections()
             existing = [c.name for c in collections.collections]
 
             if self._qdrant_collection not in existing:
@@ -102,12 +110,11 @@ class HybridRetriever:
                     log.warning("Cohere embedding failed — using BM25 only")
                     return
 
-                from qdrant_client.models import Distance, PointStruct, VectorParams
                 dim = len(embeddings[0])
-                loop.run_until_complete(qdrant.create_collection(
+                client.create_collection(
                     collection_name=self._qdrant_collection,
                     vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
-                ))
+                )
                 points = [
                     PointStruct(
                         id=i,
@@ -116,14 +123,12 @@ class HybridRetriever:
                     )
                     for i in range(len(self._docs))
                 ]
-                loop.run_until_complete(qdrant.upsert(
-                    collection_name=self._qdrant_collection,
-                    points=points,
-                ))
+                client.upsert(collection_name=self._qdrant_collection, points=points)
                 log.info("Qdrant Cloud vector index ready (%d docs)", len(self._docs))
             else:
                 log.info("Qdrant Cloud collection already exists — reusing")
 
+            self._qdrant_sync = client
             self._use_vectors = True
 
         except Exception as exc:
@@ -138,27 +143,19 @@ class HybridRetriever:
         bm25_ranking = sorted(range(len(self._docs)), key=lambda i: bm25_scores[i], reverse=True)
         rankings: list[list[int]] = [bm25_ranking]
 
-        if self._use_vectors and self._cohere_api_key:
+        if self._use_vectors and self._cohere_api_key and hasattr(self, "_qdrant_sync"):
             try:
-                from rootcause.db.qdrant_client import get_qdrant
-                import asyncio
-                qdrant = get_qdrant()
-                if qdrant:
-                    query_vec = _cohere_embed(
-                        [query],
-                        api_key=self._cohere_api_key,
-                        input_type="search_query",
+                query_vec = _cohere_embed([query], api_key=self._cohere_api_key, input_type="search_query")
+                if query_vec:
+                    hits = self._qdrant_sync.search(
+                        collection_name=self._qdrant_collection,
+                        query_vector=query_vec[0],
+                        limit=top_k * 2,
                     )
-                    if query_vec:
-                        loop = asyncio.get_event_loop()
-                        hits = loop.run_until_complete(qdrant.search(
-                            collection_name=self._qdrant_collection,
-                            query_vector=query_vec[0],
-                            limit=top_k * 2,
-                        ))
-                        vec_ranking = [h.id for h in hits if isinstance(h.id, int)]
-                        if vec_ranking:
-                            rankings.append(vec_ranking)
+                    vec_ranking = [h.id for h in hits if isinstance(h.id, int)]
+                    if vec_ranking:
+                        rankings.append(vec_ranking)
+                        log.info("Vector search returned %d results for RRF fusion", len(vec_ranking))
             except Exception as exc:
                 log.debug("Vector query failed: %s", exc)
 
@@ -181,15 +178,11 @@ class HybridRetriever:
             )
         return results
 
-    def rerank(
-        self, query: str, results: list[RetrievalResult], cohere_api_key: str, top_k: int = 5
-    ) -> list[RetrievalResult]:
-        """Optionally rerank results with Cohere. Returns input unchanged on failure."""
+    def rerank(self, query: str, results: list[RetrievalResult], cohere_api_key: str, top_k: int = 5) -> list[RetrievalResult]:
         if not cohere_api_key or not results:
             return results[:top_k]
         try:
             import cohere
-
             co = cohere.Client(api_key=cohere_api_key)
             response = co.rerank(
                 model="rerank-english-v3.0",
