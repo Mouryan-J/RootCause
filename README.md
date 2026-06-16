@@ -45,16 +45,16 @@ Hybrid retrieval surfaces the correct runbook as the **top result 96% of the tim
 
 ---
 
-## What it does
+## How it works
 
-Submit a production incident (title, service, severity, logs) and RootCause will:
+1. **Submit** — paste an incident title, affected service, severity, and raw logs into the form
+2. **Triage** — the Triage agent (gpt-4o-mini) classifies severity and extracts key signals to build a search query
+3. **Retrieve** — the Retrieval agent runs BM25 + Qdrant vector search in parallel, fuses the rankings with RRF, then Cohere reranks the top results; Neo4j is also queried for the service's upstream/downstream dependencies
+4. **Analyze** — the RCA agent (claude-haiku) reads the retrieved runbooks and dependency context to produce 1–3 ranked root cause hypotheses with confidence scores and evidence citations
+5. **Remediate** — the Remediation agent (gpt-4o-mini) writes numbered fix steps referencing the matched runbooks
+6. **Result** — the page polls every 2 seconds and renders the full report once complete; the service dependency graph is visualized inline; the result is cached in Redis for 30 minutes
 
-1. **Triage** — classify severity and extract signals from logs
-2. **Retrieve** — find relevant runbooks via hybrid BM25 + vector search (Qdrant + Cohere)
-3. **Analyze** — generate ranked root cause hypotheses with confidence scores and evidence
-4. **Remediate** — produce concrete remediation steps referencing matched runbooks
-
-Results stream back in real time via polling. All past incidents are browsable in the history view.
+All past incidents are browsable in the history view.
 
 ---
 
@@ -133,6 +133,32 @@ flowchart TD
 
 ---
 
+## Project structure
+
+```
+rootcause/
+├── src/rootcause/
+│   ├── agents/          # LangGraph agents (triage, retrieval, rca, remediation, graph)
+│   ├── api/             # FastAPI routes, schemas, middleware
+│   ├── core/            # Config, security, telemetry (Langfuse)
+│   ├── db/              # SQLAlchemy models, PostgreSQL, Redis, Neo4j clients
+│   └── rag/             # Corpus loader, BM25 + Qdrant hybrid retriever
+├── frontend/
+│   └── src/
+│       ├── app/         # Next.js pages (submit, results, history)
+│       ├── components/  # ResultsPoller, ServiceGraphView, form components
+│       └── lib/         # API client
+├── data/
+│   ├── corpus/          # 252 runbooks and postmortems (source documents)
+│   └── eval/            # retrieval_eval.jsonl (50 labeled queries)
+├── scripts/
+│   ├── seed_graph.py    # Populates Neo4j with 11 services + 21 dependency edges
+│   └── run_eval.py      # BM25 vs Hybrid retrieval benchmark
+└── tests/unit/          # 17 unit tests (config, security, RAG, RCA parsing)
+```
+
+---
+
 ## Running locally
 
 **Prerequisites:** Python 3.12+, [uv](https://github.com/astral-sh/uv), Node.js 20+
@@ -174,24 +200,3 @@ uv run ruff check src/ tests/
 
 17 unit tests covering config, security, RAG retrieval, and RCA agent parsing.
 
----
-
-## Phases
-
-- [x] Phase 0 — Project Discovery
-- [x] Phase 1 — Dataset Research
-- [x] Phase 2 — System Design
-- [x] Phase 3 — Project Initialization
-- [x] Phase 4 — Backend Development
-- [x] Phase 5 — RAG System
-- [x] Phase 6 — Multi-Agent System
-- [x] Phase 7 — Databases
-- [x] Phase 8 — Frontend
-- [x] Phase 9 — Evaluation Framework
-- [x] Phase 10 — Observability
-- [x] Phase 11 — Cost Optimization
-- [x] Phase 12 — Testing
-- [x] Phase 13 — CI/CD
-- [x] Phase 14 — Deployment
-- [x] Phase 15 — Portfolio Polish
-- [x] Phase 16 — Final Review
