@@ -7,9 +7,10 @@ Falls back to a heuristic summary when the API key is absent.
 """
 from __future__ import annotations
 
+import json
 import logging
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from rootcause.agents.state import IncidentState
 from rootcause.core.config import get_settings
@@ -42,6 +43,14 @@ class RootCauseItem(BaseModel):
 class RCAOutput(BaseModel):
     root_causes: list[RootCauseItem]
     contributing_factors: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_string_fields(cls, values: dict) -> dict:
+        for field in ("root_causes", "contributing_factors"):
+            if isinstance(values.get(field), str):
+                values[field] = json.loads(values[field])
+        return values
 
 
 def _format_docs(docs: list[dict]) -> str:
