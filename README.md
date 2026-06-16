@@ -7,7 +7,7 @@
 
 **Autonomous Incident RCA & Response Copilot**
 
-A multi-agent AI system that investigates production incidents and produces ranked root cause hypotheses with evidence — automatically.
+A multi-agent AI system that investigates production incidents and produces ranked root cause hypotheses with evidence, automatically.
 
 **Live demo:** https://root-cause-psi.vercel.app
 
@@ -15,16 +15,16 @@ A multi-agent AI system that investigates production incidents and produces rank
 
 ## Features
 
-- **Multi-agent RCA pipeline** — LangGraph supervisor routes through triage → retrieval → RCA → remediation agents in sequence
-- **Hybrid RAG retrieval** — BM25 + Qdrant vector search fused with Reciprocal Rank Fusion, then Cohere reranked for precision
-- **Service dependency graph** — Neo4j graph of upstream/downstream service relationships, visualized on the results page
-- **Ranked root causes** — 1–3 hypotheses with confidence scores (0–100%), evidence citations, and contributing factors
-- **Remediation steps** — concrete, numbered fix steps referencing matched runbooks
-- **Live results polling** — results page updates every 2 seconds until analysis completes
-- **Incident history** — browse all past incidents with severity, status, and relative timestamps
-- **LLM observability** — every agent call traced in Langfuse with token counts and cost per incident
-- **Redis caching** — completed analyses cached for 30 minutes, eliminating repeat DB hits
-- **CI/CD** — GitHub Actions runs ruff lint and 17 pytest unit tests on every push
+- **Multi-agent RCA pipeline**: LangGraph supervisor routes through triage → retrieval → RCA → remediation agents in sequence
+- **Hybrid RAG retrieval**: BM25 + Qdrant vector search fused with Reciprocal Rank Fusion, then Cohere reranked for precision
+- **Service dependency graph**: Neo4j graph of upstream/downstream service relationships, visualized on the results page
+- **Ranked root causes**: 1–3 hypotheses with confidence scores (0–100%), evidence citations, and contributing factors
+- **Remediation steps**: concrete, numbered fix steps referencing matched runbooks
+- **Live results polling**: results page updates every 2 seconds until analysis completes
+- **Incident history**: browse all past incidents with severity, status, and relative timestamps
+- **LLM observability**: every agent call traced in Langfuse with token counts and cost per incident
+- **Redis caching**: completed analyses cached for 30 minutes, eliminating repeat DB hits
+- **CI/CD**: GitHub Actions runs ruff lint and 17 pytest unit tests on every push
 
 ---
 
@@ -47,12 +47,12 @@ Hybrid retrieval surfaces the correct runbook as the **top result 96% of the tim
 
 ## How it works
 
-1. **Submit** — paste an incident title, affected service, severity, and raw logs into the form
-2. **Triage** — the Triage agent (gpt-4o-mini) classifies severity and extracts key signals to build a search query
-3. **Retrieve** — the Retrieval agent runs BM25 + Qdrant vector search in parallel, fuses the rankings with RRF, then Cohere reranks the top results; Neo4j is also queried for the service's upstream/downstream dependencies
-4. **Analyze** — the RCA agent (claude-haiku) reads the retrieved runbooks and dependency context to produce 1–3 ranked root cause hypotheses with confidence scores and evidence citations
-5. **Remediate** — the Remediation agent (gpt-4o-mini) writes numbered fix steps referencing the matched runbooks
-6. **Result** — the page polls every 2 seconds and renders the full report once complete; the service dependency graph is visualized inline; the result is cached in Redis for 30 minutes
+1. **Submit**: paste an incident title, affected service, severity, and raw logs into the form
+2. **Triage**: the Triage agent (gpt-4o-mini) classifies severity and extracts key signals to build a search query
+3. **Retrieve**: the Retrieval agent runs BM25 + Qdrant vector search in parallel, fuses the rankings with RRF, then Cohere reranks the top results; Neo4j is also queried for the service's upstream/downstream dependencies
+4. **Analyze**: the RCA agent (claude-haiku) reads the retrieved runbooks and dependency context to produce 1–3 ranked root cause hypotheses with confidence scores and evidence citations
+5. **Remediate**: the Remediation agent (gpt-4o-mini) writes numbered fix steps referencing the matched runbooks
+6. **Result**: the page polls every 2 seconds and renders the full report once complete; the service dependency graph is visualized inline; the result is cached in Redis for 30 minutes
 
 All past incidents are browsable in the history view.
 
