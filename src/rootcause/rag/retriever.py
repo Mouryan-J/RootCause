@@ -58,22 +58,10 @@ class HybridRetriever:
         self._initialized = True
 
     def _try_init_vectors(self) -> None:
-        try:
-            from qdrant_client import QdrantClient  # type: ignore[import]
-
-            client = QdrantClient(":memory:")
-            client.add(
-                collection_name=self._qdrant_collection,
-                documents=[d.content for d in self._docs],
-                ids=list(range(len(self._docs))),
-                metadata=[{"doc_id": d.doc_id, "title": d.title} for d in self._docs],
-            )
-            self._qdrant = client
-            self._use_vectors = True
-            log.info("Qdrant in-memory vector index ready (%d docs)", len(self._docs))
-        except Exception as exc:
-            log.warning("Vector search unavailable, using BM25 only: %s", exc)
-            self._use_vectors = False
+        # fastembed loads a ~300MB embedding model — too large for free-tier RAM.
+        # BM25 retrieval is used instead.
+        self._use_vectors = False
+        log.info("Vector search disabled — using BM25 only")
 
     def retrieve(self, query: str, top_k: int = 5) -> list[RetrievalResult]:
         self._init()
