@@ -6,7 +6,6 @@ and queries Neo4j for service dependency context.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from rootcause.agents.state import IncidentState
@@ -17,22 +16,6 @@ from rootcause.rag.retriever import get_retriever
 log = logging.getLogger(__name__)
 
 TOP_K = 6
-
-
-def _fetch_graph(service_name: str) -> dict:
-    """Run the async Neo4j query safely from within a sync LangGraph node."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                return pool.submit(asyncio.run, get_service_dependencies(service_name)).result()
-        return loop.run_until_complete(get_service_dependencies(service_name))
-    except RuntimeError:
-        return asyncio.run(get_service_dependencies(service_name))
-    except Exception as exc:
-        log.warning("graph_fetch_error: %s", exc)
-        return {"depends_on": [], "depended_on_by": []}
 
 
 def retrieval_node(state: IncidentState) -> dict:
@@ -66,7 +49,7 @@ def retrieval_node(state: IncidentState) -> dict:
         docs = []
 
     # Neo4j service dependency graph
-    service_graph = _fetch_graph(service) if service else {"depends_on": [], "depended_on_by": []}
+    service_graph = get_service_dependencies(service) if service else {"depends_on": [], "depended_on_by": []}
     if service_graph["depends_on"] or service_graph["depended_on_by"]:
         log.info(
             "Graph context: %s depends on %d services, depended on by %d",
