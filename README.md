@@ -13,6 +13,21 @@ A multi-agent AI system that investigates production incidents and produces rank
 
 ---
 
+## Features
+
+- **Multi-agent RCA pipeline** — LangGraph supervisor routes through triage → retrieval → RCA → remediation agents in sequence
+- **Hybrid RAG retrieval** — BM25 + Qdrant vector search fused with Reciprocal Rank Fusion, then Cohere reranked for precision
+- **Service dependency graph** — Neo4j graph of upstream/downstream service relationships, visualized on the results page
+- **Ranked root causes** — 1–3 hypotheses with confidence scores (0–100%), evidence citations, and contributing factors
+- **Remediation steps** — concrete, numbered fix steps referencing matched runbooks
+- **Live results polling** — results page updates every 2 seconds until analysis completes
+- **Incident history** — browse all past incidents with severity, status, and relative timestamps
+- **LLM observability** — every agent call traced in Langfuse with token counts and cost per incident
+- **Redis caching** — completed analyses cached for 30 minutes, eliminating repeat DB hits
+- **CI/CD** — GitHub Actions runs ruff lint and 17 pytest unit tests on every push
+
+---
+
 ## What it does
 
 Submit a production incident (title, service, severity, logs) and RootCause will:
