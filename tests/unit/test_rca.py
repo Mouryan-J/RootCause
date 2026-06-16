@@ -1,5 +1,8 @@
 import json
+
 import pytest
+from pydantic import ValidationError
+
 from rootcause.agents.rca import RCAOutput, RootCauseItem
 
 
@@ -25,10 +28,10 @@ def test_rca_output_parses_json_string_fields():
 
 
 def test_root_cause_confidence_bounds():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RootCauseItem(description="test", confidence=1.5, evidence=[])
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RootCauseItem(description="test", confidence=-0.1, evidence=[])
 
 

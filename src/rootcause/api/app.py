@@ -11,12 +11,12 @@ from rootcause.core.telemetry import init_otel
 from rootcause.db import (
     close_neo4j,
     close_postgres,
-    close_redis,
     close_qdrant,
+    close_redis,
     init_neo4j,
     init_postgres,
-    init_redis,
     init_qdrant,
+    init_redis,
 )
 
 logger = get_logger(__name__)
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     logger.info("rootcause_shutdown")
     await close_postgres()
-    for name, _, close_fn in _OPTIONAL_DBS:
+    for _name, _, close_fn in _OPTIONAL_DBS:
         try:
             await close_fn()
         except Exception:

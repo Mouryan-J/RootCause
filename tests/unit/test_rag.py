@@ -1,5 +1,4 @@
-import pytest
-from rootcause.rag.retriever import _rrf, _tokenize, HybridRetriever, RetrievalResult
+from rootcause.rag.retriever import HybridRetriever, RetrievalResult, _rrf, _tokenize
 
 
 def test_tokenize_lowercases():

@@ -16,9 +16,9 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph  # type: ignore[import]
 
+from rootcause.agents.rca import rca_node
 from rootcause.agents.remediation import remediation_node
 from rootcause.agents.retrieval import retrieval_node
-from rootcause.agents.rca import rca_node
 from rootcause.agents.state import IncidentState
 from rootcause.agents.triage import triage_node
 from rootcause.core.logging import get_logger

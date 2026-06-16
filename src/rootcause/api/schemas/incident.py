@@ -1,19 +1,19 @@
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     critical = "critical"
     high = "high"
     medium = "medium"
     low = "low"
 
 
-class AnalysisStatus(str, Enum):
+class AnalysisStatus(StrEnum):
     queued = "queued"
     processing = "processing"
     complete = "complete"

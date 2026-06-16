@@ -84,9 +84,10 @@ class HybridRetriever:
 
     def _try_init_vectors(self) -> None:
         try:
-            from rootcause.core.config import get_settings
             from qdrant_client import QdrantClient
             from qdrant_client.models import Distance, PointStruct, VectorParams
+
+            from rootcause.core.config import get_settings
 
             settings = get_settings()
             if not settings.qdrant_url or not settings.cohere_api_key:
