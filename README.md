@@ -1,4 +1,4 @@
-# RootCause
+# RootCauseAnalysis
 
 [![CI](https://github.com/Mouryan-J/RootCause/actions/workflows/ci.yml/badge.svg)](https://github.com/Mouryan-J/RootCause/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
