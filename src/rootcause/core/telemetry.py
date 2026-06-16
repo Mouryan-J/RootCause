@@ -48,15 +48,15 @@ def get_langfuse_callback(session_id: str | None = None):
     try:
         try:
             from langfuse.langchain import CallbackHandler  # type: ignore[import]  # v3+
+            return CallbackHandler(session_id=session_id)
         except ImportError:
             from langfuse.callback import CallbackHandler  # type: ignore[import]  # v2
-
-        return CallbackHandler(
-            public_key=settings.langfuse_public_key,
-            secret_key=settings.langfuse_secret_key,
-            host=settings.langfuse_host,
-            session_id=session_id,
-        )
+            return CallbackHandler(
+                public_key=settings.langfuse_public_key,
+                secret_key=settings.langfuse_secret_key,
+                host=settings.langfuse_host,
+                session_id=session_id,
+            )
     except Exception as exc:
         log.warning("langfuse_callback_failed", error=str(exc))
         return None
