@@ -1,5 +1,10 @@
 # RootCause
 
+[![CI](https://github.com/Mouryan-J/RootCause/actions/workflows/ci.yml/badge.svg)](https://github.com/Mouryan-J/RootCause/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
+[![Deploy](https://img.shields.io/badge/backend-render-46E3B7.svg)](https://rootcause-api.onrender.com)
+[![Frontend](https://img.shields.io/badge/frontend-vercel-black.svg)](https://root-cause-psi.vercel.app)
+
 **Autonomous Incident RCA & Response Copilot**
 
 A multi-agent AI system that investigates production incidents and produces ranked root cause hypotheses with evidence — automatically.
