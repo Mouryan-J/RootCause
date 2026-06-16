@@ -39,6 +39,7 @@ def _incident_to_result(incident: Incident) -> AnalysisResult:
         status=AnalysisStatus(incident.status),
         created_at=incident.created_at,
         completed_at=incident.completed_at,
+        service=incident.service,
         root_causes=root_causes,
         contributing_factors=incident.contributing_factors or [],
         remediation_steps=incident.remediation_steps or [],

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
-from rootcause.api.routes import health, incidents
+from rootcause.api.routes import graph, health, incidents
 from rootcause.core.config import get_settings
 from rootcause.core.logging import configure_logging, get_logger
 from rootcause.core.telemetry import init_otel
@@ -104,5 +104,6 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(incidents.router)
+    app.include_router(graph.router)
 
     return app

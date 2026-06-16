@@ -1,4 +1,4 @@
-import type { AnalysisResult, IncidentListItem, IncidentRequest, IncidentResponse } from '@/types/incident'
+import type { AnalysisResult, IncidentListItem, IncidentRequest, IncidentResponse, ServiceGraph } from '@/types/incident'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
@@ -19,6 +19,15 @@ export async function submitIncident(data: IncidentRequest): Promise<IncidentRes
     throw new Error(`Submit failed (${res.status}): ${text}`)
   }
   return res.json() as Promise<IncidentResponse>
+}
+
+export async function getServiceGraph(serviceName: string): Promise<ServiceGraph> {
+  const res = await fetch(`${BASE_URL}/graph/${encodeURIComponent(serviceName)}`, {
+    cache: 'no-store',
+    headers: authHeaders(),
+  })
+  if (!res.ok) return { depends_on: [], depended_on_by: [] }
+  return res.json() as Promise<ServiceGraph>
 }
 
 export async function listIncidents(limit = 20): Promise<IncidentListItem[]> {

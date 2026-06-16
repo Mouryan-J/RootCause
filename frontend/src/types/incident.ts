@@ -41,10 +41,21 @@ export interface AnalysisResult {
   status: AnalysisStatus
   created_at: string
   completed_at?: string
+  service: string
   root_causes: RootCause[]
   contributing_factors: string[]
   remediation_steps: string[]
   summary?: string
   runbooks_referenced: string[]
   model_used?: string
+}
+
+export interface GraphNode {
+  name: string
+  dep_type: string
+}
+
+export interface ServiceGraph {
+  depends_on: GraphNode[]
+  depended_on_by: GraphNode[]
 }

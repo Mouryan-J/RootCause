@@ -1,3 +1,3 @@
-from rootcause.api.routes import health, incidents
+from rootcause.api.routes import graph, health, incidents
 
-__all__ = ["health", "incidents"]
+__all__ = ["graph", "health", "incidents"]

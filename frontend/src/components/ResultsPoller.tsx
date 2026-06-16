@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { getIncident } from '@/lib/api'
-import type { AnalysisResult, AnalysisStatus, RootCause } from '@/types/incident'
+import { getIncident, getServiceGraph } from '@/lib/api'
+import ServiceGraphView from '@/components/ServiceGraphView'
+import type { AnalysisResult, AnalysisStatus, RootCause, ServiceGraph } from '@/types/incident'
 
 const TERMINAL: AnalysisStatus[] = ['complete', 'failed']
 
@@ -59,6 +60,7 @@ function Spinner() {
 
 export default function ResultsPoller({ id }: { id: string }) {
   const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [graph, setGraph] = useState<ServiceGraph | null>(null)
   const [error, setError] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -69,6 +71,9 @@ export default function ResultsPoller({ id }: { id: string }) {
         setResult(data)
         if (TERMINAL.includes(data.status)) {
           if (intervalRef.current) clearInterval(intervalRef.current)
+          if (data.service && !graph) {
+            getServiceGraph(data.service).then(setGraph)
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Fetch failed')
@@ -179,6 +184,11 @@ export default function ResultsPoller({ id }: { id: string }) {
             ))}
           </ol>
         </section>
+      )}
+
+      {/* Service Dependency Graph */}
+      {graph && result.service && (
+        <ServiceGraphView service={result.service} graph={graph} />
       )}
 
       {/* Runbooks */}

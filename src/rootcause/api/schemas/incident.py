@@ -50,6 +50,7 @@ class AnalysisResult(BaseModel):
     status: AnalysisStatus
     created_at: datetime
     completed_at: datetime | None = None
+    service: str = ""
     root_causes: list[RootCause] = []
     contributing_factors: list[str] = []
     remediation_steps: list[str] = []
