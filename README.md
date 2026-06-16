@@ -28,6 +28,23 @@ A multi-agent AI system that investigates production incidents and produces rank
 
 ---
 
+## Retrieval Evaluation
+
+Evaluated on 50 queries across database, cache, and infrastructure categories with ground-truth runbook mappings.
+
+| Metric | BM25-only | Hybrid (BM25 + Qdrant + Cohere) | Improvement |
+|---|---|---|---|
+| Recall@1 | 84.0% | 96.0% | **+12.0%** |
+| Recall@3 | 92.0% | 98.0% | **+6.0%** |
+| Recall@5 | 98.0% | 98.0% | +0.0% |
+| MRR | 89.5% | 97.0% | **+7.5%** |
+
+Hybrid retrieval surfaces the correct runbook as the **top result 96% of the time**, compared to 84% for BM25 alone.
+
+> Run `uv run python scripts/run_eval.py` to reproduce.
+
+---
+
 ## What it does
 
 Submit a production incident (title, service, severity, logs) and RootCause will:
