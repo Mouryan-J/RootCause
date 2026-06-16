@@ -2,36 +2,134 @@
 
 **Autonomous Incident RCA & Response Copilot**
 
-A multi-agent AI system that investigates production incidents and 
-produces ranked root cause hypotheses with evidence — automatically.
+A multi-agent AI system that investigates production incidents and produces ranked root cause hypotheses with evidence — automatically.
 
-## Status
-🚧 Under active development
+**Live demo:** https://root-cause-psi.vercel.app
+
+---
+
+## What it does
+
+Submit a production incident (title, service, severity, logs) and RootCause will:
+
+1. **Triage** — classify severity and extract signals from logs
+2. **Retrieve** — find relevant runbooks via hybrid BM25 + vector search (Qdrant + Cohere)
+3. **Analyze** — generate ranked root cause hypotheses with confidence scores and evidence
+4. **Remediate** — produce concrete remediation steps referencing matched runbooks
+
+Results stream back in real time via polling. All past incidents are browsable in the history view.
+
+---
 
 ## Architecture
-Multi-agent supervisor/worker pattern (LangGraph) with hybrid RAG 
-retrieval (Qdrant), service dependency graph (Neo4j), and a 
-FastAPI backend.
 
-## Phases
-- [x] Phase 0 — Project Discovery
-- [x] Phase 1 — Dataset Research  
-- [x] Phase 2 — System Design
-- [ ] Phase 3 — Project Initialization
-- [ ] Phase 4 — Backend Development
-- [ ] Phase 5 — RAG System
-- [ ] Phase 6 — Multi-Agent System
-- [ ] Phase 7 — Databases
-- [ ] Phase 8 — Frontend
-- [ ] Phase 9 — Evaluation Framework
-- [ ] Phase 10 — Observability
-- [ ] Phase 11 — Cost Optimization
-- [ ] Phase 12 — Testing
-- [ ] Phase 13 — CI/CD
-- [ ] Phase 14 — Deployment
-- [ ] Phase 15 — Portfolio Polish
-- [ ] Phase 16 — Final Review
+```
+Browser (Next.js on Vercel)
+        │
+        ▼
+FastAPI backend (Render)
+        │
+   ┌────┴────────────────────────────┐
+   │         LangGraph pipeline      │
+   │                                 │
+   │  ┌──────────┐  ┌────────────┐  │
+   │  │  Triage  │→ │ Retrieval  │  │
+   │  └──────────┘  └─────┬──────┘  │
+   │                       │        │
+   │              BM25 + Qdrant     │
+   │              + Cohere rerank   │
+   │                       │        │
+   │                  ┌────▼──────┐ │
+   │                  │    RCA    │ │
+   │                  └────┬──────┘ │
+   │                       │        │
+   │               ┌───────▼─────┐  │
+   │               │ Remediation │  │
+   │               └─────────────┘  │
+   └─────────────────────────────────┘
+        │                │
+   PostgreSQL          Qdrant Cloud
+   (incidents)         (runbook vectors)
+```
+
+---
 
 ## Tech Stack
-Python · FastAPI · LangGraph · Qdrant · Neo4j · PostgreSQL · 
-Redis · Next.js · Docker · Render · Vercel
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15, Tailwind CSS, deployed on Vercel |
+| Backend | Python 3.12, FastAPI, deployed on Render |
+| AI orchestration | LangGraph (supervisor/worker multi-agent) |
+| LLM | Claude Haiku via Anthropic API |
+| RAG retrieval | BM25 (rank-bm25) + Qdrant Cloud vectors + Cohere rerank |
+| Embeddings | Cohere embed-english-v3.0 |
+| Database | PostgreSQL (SQLAlchemy async) |
+| Cache | Redis (optional, graceful fallback) |
+| Observability | OpenTelemetry + structlog |
+| CI | GitHub Actions (ruff lint + pytest) |
+
+---
+
+## Running locally
+
+**Prerequisites:** Python 3.12+, [uv](https://github.com/astral-sh/uv), Node.js 20+
+
+```bash
+# Clone
+git clone https://github.com/Mouryan-J/RootCause.git
+cd RootCause
+
+# Backend
+cp .env.example .env          # fill in API keys
+uv sync --extra dev
+uv run python -m rootcause.main
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+**Required env vars** (see `.env.example`):
+
+```
+ANTHROPIC_API_KEY=...
+DATABASE_URL=postgresql+asyncpg://...
+QDRANT_URL=https://xxx.qdrant.io:6333
+QDRANT_API_KEY=...
+COHERE_API_KEY=...
+```
+
+---
+
+## Running tests
+
+```bash
+uv run pytest tests/unit/ -v
+uv run ruff check src/ tests/
+```
+
+17 unit tests covering config, security, RAG retrieval, and RCA agent parsing.
+
+---
+
+## Phases
+
+- [x] Phase 0 — Project Discovery
+- [x] Phase 1 — Dataset Research
+- [x] Phase 2 — System Design
+- [x] Phase 3 — Project Initialization
+- [x] Phase 4 — Backend Development
+- [x] Phase 5 — RAG System
+- [x] Phase 6 — Multi-Agent System
+- [x] Phase 7 — Databases
+- [x] Phase 8 — Frontend
+- [x] Phase 9 — Evaluation Framework
+- [x] Phase 10 — Observability
+- [x] Phase 11 — Cost Optimization
+- [x] Phase 12 — Testing
+- [x] Phase 13 — CI/CD
+- [x] Phase 14 — Deployment
+- [x] Phase 15 — Portfolio Polish
+- [ ] Phase 16 — Final Review
