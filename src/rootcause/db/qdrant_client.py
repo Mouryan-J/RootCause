@@ -11,9 +11,14 @@ _client: AsyncQdrantClient | None = None
 async def init_qdrant() -> None:
     global _client
     settings = get_settings()
-    _client = AsyncQdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+    if not settings.qdrant_url:
+        raise RuntimeError("QDRANT_URL not set — skipping Qdrant")
+    _client = AsyncQdrantClient(
+        url=settings.qdrant_url,
+        api_key=settings.qdrant_api_key or None,
+    )
     await _client.get_collections()
-    log.info("qdrant_ready", host=settings.qdrant_host, port=settings.qdrant_port)
+    log.info("qdrant_ready", url=settings.qdrant_url)
 
 
 async def close_qdrant() -> None:

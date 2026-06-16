@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = Field(default="redis://localhost:6379")
 
-    # Qdrant
-    qdrant_host: str = Field(default="localhost")
-    qdrant_port: int = Field(default=6333)
+    # Qdrant Cloud
+    qdrant_url: str = Field(default="", description="Qdrant Cloud URL, e.g. https://xxx.qdrant.io:6333")
+    qdrant_api_key: str = Field(default="", description="Qdrant Cloud API key")
     qdrant_collection: str = Field(default="rootcause_runbooks")
 
     # Neo4j
