@@ -48,7 +48,7 @@ def get_langfuse_callback(session_id: str | None = None):
     try:
         try:
             from langfuse.langchain import CallbackHandler  # type: ignore[import]  # v3+
-            return CallbackHandler(session_id=session_id)
+            return CallbackHandler()  # reads LANGFUSE_* env vars automatically
         except ImportError:
             from langfuse.callback import CallbackHandler  # type: ignore[import]  # v2
             return CallbackHandler(
