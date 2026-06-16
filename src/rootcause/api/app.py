@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Response
 from rootcause.api.routes import health, incidents
 from rootcause.core.config import get_settings
 from rootcause.core.logging import configure_logging, get_logger
-from rootcause.core.telemetry import init_otel, instrument_app
+from rootcause.core.telemetry import init_otel
 from rootcause.db import (
     close_neo4j,
     close_postgres,
@@ -104,7 +104,5 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(incidents.router)
-
-    instrument_app(app)
 
     return app
