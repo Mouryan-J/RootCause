@@ -46,7 +46,10 @@ def get_langfuse_callback(session_id: str | None = None):
     if not (settings.langfuse_public_key and settings.langfuse_secret_key):
         return None
     try:
-        from langfuse.callback import CallbackHandler  # type: ignore[import]
+        try:
+            from langfuse.langchain import CallbackHandler  # type: ignore[import]  # v3+
+        except ImportError:
+            from langfuse.callback import CallbackHandler  # type: ignore[import]  # v2
 
         return CallbackHandler(
             public_key=settings.langfuse_public_key,
