@@ -60,6 +60,11 @@ Results stream back in real time via polling. All past incidents are browsable i
 
 ## Architecture
 
+![Architecture Diagram](docs/architecture.svg)
+
+<details>
+<summary>Mermaid diagram</summary>
+
 ```mermaid
 flowchart TD
     User(["👤 User\nNext.js · Vercel"])
@@ -106,6 +111,8 @@ flowchart TD
     GW -- "GET /incidents/:id (cached)" --> RD
     API -- "Results + graph" --> User
 ```
+
+</details>
 
 ---
 
