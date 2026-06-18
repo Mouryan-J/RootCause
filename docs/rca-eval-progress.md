@@ -37,6 +37,13 @@ The `RCAOutput` parsing bug in `rootcause/agents/rca.py` (raised on trailing JSO
 - [ ] Expand eval set from 18 → 30–50 incidents with full tier stratification
 - [ ] Sample 20% of judge decisions for manual review, report judge-human agreement rate (only 1 decision spot-checked so far)
 
+## Status as of last checkpoint
+
+- Commit `e5b2586` — eval tooling + dataset + docs (Phase 1)
+- Commit `6ead44f` — the parsing-bug fix described above
+- **Both pushed to `origin/main`.** Render/Vercel should pick up the fix on their next auto-deploy (Render free tier cold-starts on first request after idle — a `503` on `/health` right after deploy is expected, not necessarily broken).
+- `docs/evaluation.md` and the README's reported eval numbers (88.9%/88.9%) **describe the pre-fix run** — accurate as a record of what was found, stale as a current measurement.
+
 ## How to resume
 
-Phase 1 is complete and committed-ready. To pick this up again, start with the "Key finding worth acting on next" above — fixing the RCA parsing bug and re-running `scripts/run_rca_eval.py` would likely raise both baselines' real accuracy and produce a more meaningful A-vs-E comparison than this run could, since both baselines hit the same bug independently. After that, work down the Phase 2 backlog in roughly the listed order (judge tightening is cheap and high-value; baselines B-D and the larger eval set are the expensive long-tail items).
+Start here: **re-run `scripts/run_rca_eval.py`** (costs ~$0.20-1 in API calls again — confirm with the user first). Spot-checking just the 5 previously-failed incidents (RCA-EVAL-006, 010, 016, 017, 018) first is cheaper and sufficient to confirm the fix worked before paying for a full 18-incident re-run. Once confirmed, update `docs/evaluation.md` and the README's numbers to the post-fix results — they currently describe the buggy run, not the fixed system. After that, work down the rest of the Phase 2 backlog above in roughly listed order (judge-prompt tightening is cheap and high-value; baselines B-D and expanding the eval set are the expensive long-tail items).
