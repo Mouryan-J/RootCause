@@ -1,0 +1,308 @@
+{
+  "baseline_a": {
+    "aggregate": {
+      "n": 2,
+      "top1_accuracy": 0.5,
+      "top3_accuracy": 0.5,
+      "avg_hallucination_rate": 0.25,
+      "by_difficulty_tier": {
+        "3": {
+          "n": 2,
+          "top1_accuracy": 0.5,
+          "top3_accuracy": 0.5
+        }
+      }
+    },
+    "per_incident": [
+      {
+        "incident_id": "RCA-EVAL-010",
+        "difficulty_tier": 3,
+        "category": "service_mesh",
+        "judged_hypotheses": [
+          {
+            "description": "Upstream dependency degradation: user-profile-service experiencing severe GC pauses (1800ms) following v4.0 deployment at 14:55, causing recommendations-service to block on slow responses and exhaust worker threads",
+            "matched_id": "upstream_gc_pause_amplified_by_mesh_retries",
+            "reasoning": "The hypothesis describes severe GC pauses in the user-profile-service following a deployment, which aligns with the candidate cause that attributes long GC pauses to the new caching layer in the same service. This degradation causes the recommendations-service to block and exhaust worker threads, which matches the amplification of the issue described in the candidate cause."
+          },
+          {
+            "description": "Recommendations-service insufficient worker thread pool capacity or connection pool limits, causing request queuing and timeouts when upstream latency increases",
+            "matched_id": "recommendations_service_overloaded",
+            "reasoning": "The hypothesis describes an issue with the recommendations-service related to insufficient worker thread pool capacity or connection pool limits, leading to request queuing and timeouts. This aligns with the candidate cause 'recommendations_service_overloaded', which indicates that the recommendations-service is overloaded, potentially due to its own limitations."
+          },
+          {
+            "description": "Cascading failure amplification: client-side retry storms from cart-service and search-service (4.5-5.1 avg retries/request) overwhelming recommendations-service and preventing recovery",
+            "matched_id": "recommendations_service_overloaded",
+            "reasoning": "The hypothesis describes a scenario where client-side retry storms from the cart-service and search-service overwhelm the recommendations-service, leading to a failure in recovery. This aligns with the candidate cause 'recommendations_service_overloaded', which indicates that the recommendations-service is overloaded, likely due to the retries from other services. The underlying mechanism of overload due to excessive retries matches the candidate cause."
+          }
+        ],
+        "top1_correct": true,
+        "top3_correct": true,
+        "hallucination_rate": 0.25,
+        "error": null
+      },
+      {
+        "incident_id": "RCA-EVAL-018",
+        "difficulty_tier": 3,
+        "category": "database",
+        "judged_hypotheses": [],
+        "top1_correct": false,
+        "top3_correct": false,
+        "hallucination_rate": null,
+        "error": "1 validation error for RCAOutput\ncontributing_factors\n  Field required [type=missing, input_value={'root_causes': [{'descri...primary-side issues']}]}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+      }
+    ],
+    "raw_outputs": {
+      "RCA-EVAL-010": {
+        "root_causes": [
+          {
+            "description": "Upstream dependency degradation: user-profile-service experiencing severe GC pauses (1800ms) following v4.0 deployment at 14:55, causing recommendations-service to block on slow responses and exhaust worker threads",
+            "confidence": 0.85,
+            "evidence": [
+              "user-profile-service GC pause spiked to 1800ms at 14:58, correlating with v4.0 deploy at 14:55 (new caching layer introduced)",
+              "recommendations-service p99 latency to user-profile-service reached 3800ms at 15:00:00, far exceeding expected <200ms SLA",
+              "recommendations-service request queue depth reached 2400 with all workers busy at 15:02:00, indicating thread pool exhaustion from blocking on slow upstream calls",
+              "Incident timeline shows GC spike at 14:58 preceded the queue depth error at 15:02:00 by ~4 minutes, consistent with cascading failure propagation"
+            ]
+          },
+          {
+            "description": "Recommendations-service insufficient worker thread pool capacity or connection pool limits, causing request queuing and timeouts when upstream latency increases",
+            "confidence": 0.75,
+            "evidence": [
+              "Request queue depth reached 2400 with all workers busy at 15:02:00, indicating thread pool exhaustion",
+              "30% of requests timing out at 15:03:00 despite only moderate upstream latency increase, suggesting inadequate concurrency handling",
+              "Retries climbing to 4.5-5.1 avg retries/request across cart-service and search-service, indicating systematic timeout behavior rather than isolated failures",
+              "No evidence of autoscaling or dynamic worker adjustment in response to queue buildup"
+            ]
+          },
+          {
+            "description": "Cascading failure amplification: client-side retry storms from cart-service and search-service (4.5-5.1 avg retries/request) overwhelming recommendations-service and preventing recovery",
+            "confidence": 0.65,
+            "evidence": [
+              "cart-service retries climbing to 4.5 avg retries/request at 15:01:00",
+              "search-service retries climbing to 5.1 avg retries/request at 15:01:30",
+              "Retry storms would compound queue depth and worker exhaustion, creating positive feedback loop",
+              "Timing shows retries escalating after initial upstream latency spike, consistent with retry amplification pattern"
+            ]
+          }
+        ],
+        "contributing_factors": [
+          "New caching layer introduced in user-profile-service v4.0 deployment at 14:55 likely has memory management issues or inefficient cache eviction triggering GC pauses",
+          "Lack of circuit breaker or bulkhead pattern between recommendations-service and user-profile-service, allowing upstream degradation to directly exhaust downstream resources",
+          "Aggressive retry policies on cart-service and search-service without exponential backoff or jitter, amplifying load during degradation",
+          "No apparent request timeout or deadline propagation from recommendations-service to user-profile-service, causing threads to block indefinitely on slow responses",
+          "Insufficient monitoring/alerting on user-profile-service GC metrics to catch the 1800ms pause before cascading impact on downstream services"
+        ]
+      },
+      "RCA-EVAL-018": {
+        "root_causes": [],
+        "error": "1 validation error for RCAOutput\ncontributing_factors\n  Field required [type=missing, input_value={'root_causes': [{'descri...primary-side issues']}]}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+      }
+    }
+  },
+  "baseline_e": {
+    "aggregate": {
+      "n": 2,
+      "top1_accuracy": 1.0,
+      "top3_accuracy": 1.0,
+      "avg_hallucination_rate": 0.0,
+      "by_difficulty_tier": {
+        "3": {
+          "n": 2,
+          "top1_accuracy": 1.0,
+          "top3_accuracy": 1.0
+        }
+      }
+    },
+    "per_incident": [
+      {
+        "incident_id": "RCA-EVAL-010",
+        "difficulty_tier": 3,
+        "category": "service_mesh",
+        "judged_hypotheses": [
+          {
+            "description": "Potential issue in recommendations-service: Multiple unrelated services timing out against recommendations-service",
+            "matched_id": "upstream_gc_pause_amplified_by_mesh_retries",
+            "reasoning": "The hypothesis describes a situation where multiple unrelated services are timing out against the recommendations-service, which aligns with the candidate cause that mentions long GC pauses in the user-profile-service affecting the recommendations-service. The amplification of retries across services due to a slow dependency matches the mechanism described in the hypothesis."
+          }
+        ],
+        "top1_correct": true,
+        "top3_correct": true,
+        "hallucination_rate": 0.0,
+        "error": null
+      },
+      {
+        "incident_id": "RCA-EVAL-018",
+        "difficulty_tier": 3,
+        "category": "database",
+        "judged_hypotheses": [
+          {
+            "description": "Replication lag on postgres-replica-2 caused read-after-write consistency violation. Users' profile updates were successfully committed to postgres-primary, but reads from postgres-replica-2 returned stale data due to 45-second replication lag, making it appear that updates did not persist.",
+            "matched_id": "replica_lag_from_etl_job",
+            "reasoning": "The hypothesis describes a situation where replication lag on postgres-replica-2 leads to users reading stale data after successfully writing to postgres-primary. This directly aligns with the candidate cause of 'replica_lag_from_etl_job', which specifies that a heavy ETL job is causing the replication lag, resulting in the same stale data issue."
+          },
+          {
+            "description": "Heavy I/O contention from the nightly ETL export job running against postgres-replica-2 since 11:50 caused replication lag by starving the replication process of I/O resources, preventing timely application of write-ahead logs from the primary.",
+            "matched_id": "replica_lag_from_etl_job",
+            "reasoning": "The hypothesis describes heavy I/O contention from an ETL export job on postgres-replica-2 causing replication lag due to starvation of I/O resources. This directly matches the candidate cause which states that the ETL job is consuming I/O and causing replication lag, leading to users seeing stale data."
+          },
+          {
+            "description": "Lack of read-after-write consistency enforcement in the profile-api service architecture. The service does not implement mechanisms (e.g., read-your-writes consistency, sticky reads to primary, or consistency tokens) to ensure users read their own writes, leaving the application vulnerable to replication lag.",
+            "matched_id": "replica_lag_from_etl_job",
+            "reasoning": "The hypothesis describes a lack of read-after-write consistency in the profile-api service due to replication lag, which aligns with the candidate cause of 'replica_lag_from_etl_job'. This candidate cause specifically mentions that users reading from a replica may see stale data due to replication lag, which is a direct match to the issue described in the hypothesis."
+          }
+        ],
+        "top1_correct": true,
+        "top3_correct": true,
+        "hallucination_rate": 0.0,
+        "error": null
+      }
+    ],
+    "raw_outputs": {
+      "RCA-EVAL-010": {
+        "root_causes": [
+          {
+            "description": "Potential issue in recommendations-service: Multiple unrelated services timing out against recommendations-service",
+            "confidence": 0.5,
+            "evidence": [
+              "p99 latency to user-profile-service 3800ms (expected <200ms)",
+              "retries to recommendations-service climbing, 4.5 avg retries/request",
+              "request queue depth 2400, workers all busy",
+              "30% of requests timing out",
+              "GC pause spiked to 1800ms at 14:58, correlates with deploy of v4.0 at 14:55"
+            ]
+          }
+        ],
+        "contributing_factors": [],
+        "retrieved_docs": [
+          {
+            "doc_id": "RB-007",
+            "title": "RB-007 \u2014 API Latency p99 Degradation",
+            "source": "runbook",
+            "score": 0.0003,
+            "excerpt": "# RB-007 \u2014 API Latency p99 Degradation\n\n**Service:** API / Backend  \n**Severity:** High  \n**Tags:** latency, performance, p99, slow-requests\n\n## Symptoms\n- p99 latency alert fires (e.g., `> 2s` for endpoints that normally run `< 200ms`)\n- p50 latency unchanged \u2014 only tail latency affected\n- Distributed trace shows a specific downstream call as the bottleneck\n- Users report intermittent slowness or timeouts\n\n## Possible Causes\n- Slow downstream dependency (DB, LLM API, vector store) affecting tail requests\n- Lock contention in database (long-running queries blocking others)\n- GC pressure in JVM-based service\n- Large payload processing (embedding generation, log parsing) blocking async workers\n- Missing database index causing occasional full table scans\n\n## Diagnostic Steps\n\n```bash\n# Identify which endpoint has the highest p99\n# Prometheus query:\nhistogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))\n\n# Break down by endpoint path to find the culprit\nhistogram_quantile(0.99, sum by (path) (rate(http_request_duration_seconds_bucket[5m])))\n```\n\n```bash\n# Check distributed traces (Langfuse or OpenTelemetry)\n# Look for spans with duration > 1s in the last 30 minutes\n\n#"
+          },
+          {
+            "doc_id": "PM-170",
+            "title": "PM-170 \u2014 incident.io",
+            "source": "postmortem",
+            "score": 0.0,
+            "excerpt": "# PM-170 \u2014 incident.io\n\n**Company:** incident.io  \n**Category:** Uncategorized  \n**Source:** https://incident.io/blog/clouds-caches-and-connection-conundrums\n\n## Incident Summary\n\nAfter moving to Google Cloud they saw spikes of Postgres connection timeouts (~200 new connections/s) and memcached \"i/o timeout\" errors. Pool tuning (15m\u219230m max lifetime, static pool size, `MaxIdleConns` 2\u219220) helped each in turn but didn't eliminate the cache errors. The smoking gun was GKE Dataplane V2: bursts of parallel outbound calls (made worse by an accidental N+1 join) saturated the per-node `anetd` agent's CPU, dropping packets between the node and other services running on it.\n"
+          },
+          {
+            "doc_id": "PM-191",
+            "title": "PM-191 \u2014 OpenAI",
+            "source": "postmortem",
+            "score": 0.0,
+            "excerpt": "# PM-191 \u2014 OpenAI\n\n**Company:** OpenAI  \n**Category:** Uncategorized  \n**Source:** https://web.archive.org/web/20240426015133/https://openai.com/blog/march-20-chatgpt-outage\n\n## Incident Summary\n\nQueues for requests and responses in a Redis cache became corrupted and out of sequence, leading to some requests revealing other people's user data to some users, including app activity data and some billing info.\n"
+          },
+          {
+            "doc_id": "PM-083",
+            "title": "PM-083 \u2014 CircleCI",
+            "source": "postmortem",
+            "score": 0.0,
+            "excerpt": "# PM-083 \u2014 CircleCI\n\n**Company:** CircleCI  \n**Category:** Database  \n**Source:** https://discuss.circleci.com/t/post-incident-report-april-4-2025-delays-in-starting-workflows/53113\n\n## Incident Summary\n\nA blue/green upgrade of the workflows database succeeded mechanically, but the post-cutover database was running every query against disk because its statistics tables had not been updated. The team ran `ANALYZE` early in the upgrade procedure, but a second major-version upgrade in the same deployment then made those statistics stale, leaving the planner without usable indexes after the cutover. Workflows latency spiked, jobs were dropped after exhausting their 10-minute retry, and the team eventually re-promoted the old (blue) database to recover.\n"
+          },
+          {
+            "doc_id": "PM-192",
+            "title": "PM-192 \u2014 PagerDuty",
+            "source": "postmortem",
+            "score": 0.0,
+            "excerpt": "# PM-192 \u2014 PagerDuty\n\n**Company:** PagerDuty  \n**Category:** Uncategorized  \n**Source:** https://web.archive.org/web/20211019062735/https://www.pagerduty.com/blog/outage-post-mortem-april-13-2013/\n\n## Incident Summary\n\nIn April 2013, PagerDuty, a cloud service proving application uptime monitoring and real-time notifications, suffered an outage when two of its three independent cloud deployments in different data centers began experiencing connectivity issues and high network latency. It was found later that the two independent deployments shared a common peering point which was experiencing network instability. While the third deployment was still operational, PagerDuty's applications failed to establish quorum due to to high network latency and hence failed in their ability to send notifications.\n"
+          },
+          {
+            "doc_id": "PM-167",
+            "title": "PM-167 \u2014 Honeycomb",
+            "source": "postmortem",
+            "score": 0.0,
+            "excerpt": "# PM-167 \u2014 Honeycomb\n\n**Company:** Honeycomb  \n**Category:** Uncategorized  \n**Source:** https://www.honeycomb.io/blog/incident-review-shepherd-cache-delays/\n\n## Incident Summary\n\nOn September 8th, 2022, our ingest system went down repeatedly and caused interruptions for over eight hours. We will first cover the background behind the incident with a high-level view of the relevant architecture, how we tried to investigate and fix the system, and finally, we\u2019ll go over some meaningful elements that surfaced from our incident review process.\n"
+          }
+        ]
+      },
+      "RCA-EVAL-018": {
+        "root_causes": [
+          {
+            "description": "Replication lag on postgres-replica-2 caused read-after-write consistency violation. Users' profile updates were successfully committed to postgres-primary, but reads from postgres-replica-2 returned stale data due to 45-second replication lag, making it appear that updates did not persist.",
+            "confidence": 0.92,
+            "evidence": [
+              "Replication lag on postgres-replica-2 measured at 45 seconds (baseline <1s) at 12:02:00, a 45x increase from normal",
+              "Profile-api reads for this endpoint are routed to postgres-replica-2 for load balancing, while writes go to postgres-primary",
+              "Writes confirmed committed on postgres-primary at 12:03:00 with normal write throughput and latency",
+              "User reports of 'profile update didn't save' despite UI confirming success indicate successful write acknowledgment but failed read verification"
+            ]
+          },
+          {
+            "description": "Heavy I/O contention from the nightly ETL export job running against postgres-replica-2 since 11:50 caused replication lag by starving the replication process of I/O resources, preventing timely application of write-ahead logs from the primary.",
+            "confidence": 0.88,
+            "evidence": [
+              "Large nightly export job running against postgres-replica-2 since 11:50 consuming heavy I/O at 12:04:00",
+              "Replication lag spike to 45 seconds occurred during the same time window as the heavy ETL job execution",
+              "Baseline replication lag is <1s, indicating the replica normally keeps up; the spike correlates with the resource-intensive export job",
+              "PM-083 (CircleCI) demonstrates how resource contention and query planning issues can cause database performance degradation and latency spikes"
+            ]
+          },
+          {
+            "description": "Lack of read-after-write consistency enforcement in the profile-api service architecture. The service does not implement mechanisms (e.g., read-your-writes consistency, sticky reads to primary, or consistency tokens) to ensure users read their own writes, leaving the application vulnerable to replication lag.",
+            "confidence": 0.78,
+            "evidence": [
+              "Profile-api routes reads to postgres-replica-2 for load balancing without apparent read-after-write consistency guarantees",
+              "The incident manifests as a consistency violation: writes succeed on primary but reads from replica return stale data",
+              "No evidence of circuit breakers, fallback to primary reads, or consistency tokens when replication lag exceeds threshold",
+              "RB-007 identifies slow downstream dependencies as a common cause of latency issues; this case shows how replica lag becomes a consistency issue rather than just latency"
+            ]
+          }
+        ],
+        "contributing_factors": [
+          "Nightly ETL export job scheduled during peak user activity hours (11:50 PM start, but incident reported at 12:00 AM) without resource isolation or I/O throttling",
+          "Lack of monitoring/alerting on replication lag threshold that would trigger automatic failover or read routing changes before user impact",
+          "No read-after-write consistency SLA or timeout mechanism to detect and mitigate replica lag in real-time",
+          "Single replica (postgres-replica-2) used for load balancing without redundancy; if this replica lags, all read traffic is affected",
+          "Absence of circuit breaker or fallback logic to route reads back to postgres-primary when replica lag exceeds acceptable threshold (e.g., >5 seconds)"
+        ],
+        "retrieved_docs": [
+          {
+            "doc_id": "PM-151",
+            "title": "PM-151 \u2014 Gitlab",
+            "source": "postmortem",
+            "score": 0.0018,
+            "excerpt": "# PM-151 \u2014 Gitlab\n\n**Company:** Gitlab  \n**Category:** Uncategorized  \n**Source:** https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31/\n\n## Incident Summary\n\nInflux of requests overloaded the database, caused replication to lag, tired admin deleted the wrong directory, six hours of data lost. See also [earlier report](https://about.gitlab.com/2017/02/01/gitlab-dot-com-database-incident) and [HN discussion](https://web.archive.org/web/20240918153505/https://news.ycombinator.com/item?id=13537052).\n"
+          },
+          {
+            "doc_id": "PM-210",
+            "title": "PM-210 \u2014 Stack Exchange",
+            "source": "postmortem",
+            "score": 0.0002,
+            "excerpt": "# PM-210 \u2014 Stack Exchange\n\n**Company:** Stack Exchange  \n**Category:** Uncategorized  \n**Source:** http://web.archive.org/web/20150404235419/https://stackstatus.net/post/115305251014/outage-postmortem-march-31-2015\n\n## Incident Summary\n\nEnabling StackEgg for all users resulted in heavy load on load balancers and consequently, a DDoS.\n"
+          },
+          {
+            "doc_id": "PM-083",
+            "title": "PM-083 \u2014 CircleCI",
+            "source": "postmortem",
+            "score": 0.0001,
+            "excerpt": "# PM-083 \u2014 CircleCI\n\n**Company:** CircleCI  \n**Category:** Database  \n**Source:** https://discuss.circleci.com/t/post-incident-report-april-4-2025-delays-in-starting-workflows/53113\n\n## Incident Summary\n\nA blue/green upgrade of the workflows database succeeded mechanically, but the post-cutover database was running every query against disk because its statistics tables had not been updated. The team ran `ANALYZE` early in the upgrade procedure, but a second major-version upgrade in the same deployment then made those statistics stale, leaving the planner without usable indexes after the cutover. Workflows latency spiked, jobs were dropped after exhausting their 10-minute retry, and the team eventually re-promoted the old (blue) database to recover.\n"
+          },
+          {
+            "doc_id": "RB-007",
+            "title": "RB-007 \u2014 API Latency p99 Degradation",
+            "source": "runbook",
+            "score": 0.0001,
+            "excerpt": "# RB-007 \u2014 API Latency p99 Degradation\n\n**Service:** API / Backend  \n**Severity:** High  \n**Tags:** latency, performance, p99, slow-requests\n\n## Symptoms\n- p99 latency alert fires (e.g., `> 2s` for endpoints that normally run `< 200ms`)\n- p50 latency unchanged \u2014 only tail latency affected\n- Distributed trace shows a specific downstream call as the bottleneck\n- Users report intermittent slowness or timeouts\n\n## Possible Causes\n- Slow downstream dependency (DB, LLM API, vector store) affecting tail requests\n- Lock contention in database (long-running queries blocking others)\n- GC pressure in JVM-based service\n- Large payload processing (embedding generation, log parsing) blocking async workers\n- Missing database index causing occasional full table scans\n\n## Diagnostic Steps\n\n```bash\n# Identify which endpoint has the highest p99\n# Prometheus query:\nhistogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))\n\n# Break down by endpoint path to find the culprit\nhistogram_quantile(0.99, sum by (path) (rate(http_request_duration_seconds_bucket[5m])))\n```\n\n```bash\n# Check distributed traces (Langfuse or OpenTelemetry)\n# Look for spans with duration > 1s in the last 30 minutes\n\n#"
+          },
+          {
+            "doc_id": "PM-167",
+            "title": "PM-167 \u2014 Honeycomb",
+            "source": "postmortem",
+            "score": 0.0001,
+            "excerpt": "# PM-167 \u2014 Honeycomb\n\n**Company:** Honeycomb  \n**Category:** Uncategorized  \n**Source:** https://www.honeycomb.io/blog/incident-review-shepherd-cache-delays/\n\n## Incident Summary\n\nOn September 8th, 2022, our ingest system went down repeatedly and caused interruptions for over eight hours. We will first cover the background behind the incident with a high-level view of the relevant architecture, how we tried to investigate and fix the system, and finally, we\u2019ll go over some meaningful elements that surfaced from our incident review process.\n"
+          },
+          {
+            "doc_id": "PM-198",
+            "title": "PM-198 \u2014 Roblox",
+            "source": "postmortem",
+            "score": 0.0001,
+            "excerpt": "# PM-198 \u2014 Roblox\n\n**Company:** Roblox  \n**Category:** Uncategorized  \n**Source:** https://blog.roblox.com/2022/01/roblox-return-to-service-10-28-10-31-2021/\n\n## Incident Summary\n\nRoblox end Oct 2021 73 hours outage. Issues with Consul streaming and BoltDB.\n"
+          }
+        ]
+      }
+    }
+  }
+}

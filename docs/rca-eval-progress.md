@@ -40,10 +40,20 @@ The `RCAOutput` parsing bug in `rootcause/agents/rca.py` (raised on trailing JSO
 ## Status as of last checkpoint
 
 - Commit `e5b2586` — eval tooling + dataset + docs (Phase 1)
-- Commit `6ead44f` — the parsing-bug fix described above
-- **Both pushed to `origin/main`.** Render/Vercel should pick up the fix on their next auto-deploy (Render free tier cold-starts on first request after idle — a `503` on `/health` right after deploy is expected, not necessarily broken).
-- `docs/evaluation.md` and the README's reported eval numbers (88.9%/88.9%) **describe the pre-fix run** — accurate as a record of what was found, stale as a current measurement.
+- Commit `6ead44f` — the parsing-bug fix
+- Commit `9f5b772` — checkpoint notes
+- All pushed to `origin/main`. Live backend (`https://rootcause-api.onrender.com/health`) confirmed healthy/responding post-deploy.
+- **Spot-checked the fix against real APIs** on the 5 previously-failed incidents (`RCA-EVAL-006, 010, 016, 017, 018`) using `scripts/run_rca_eval.py <incident-ids>` (new: accepts incident IDs as CLI args, writes to `data/eval/rca_eval_results_spotcheck.json` instead of clobbering the full results file). Findings:
+  - **Baseline E (production pipeline) went from 60% → 100%** on this subset on the first re-run. Real, substantial improvement.
+  - **Not fully eliminated**: re-running 2 of those same incidents again, `RCA-EVAL-010` hit the identical `contributing_factors` truncation bug again — same code, same `max_tokens=2048`, different outcome. The model's output length varies call-to-call even at temperature=0; this tier-3 multi-hop incident sits right at the edge of the token budget. The fix reduces the failure rate, it does not guarantee zero failures.
+  - **Confirmed the judge over-leniency issue is reproducible, not a one-off**: when RCA-EVAL-010 fell back again, the judge matched the same content-free fallback text to the correct cause on keyword overlap alone — identical to the first time this was spot-checked manually.
+  - Bumped Baseline A's (bare-LLM comparison script only, not production) `max_tokens` 2048 → 3072 for a bit more headroom; still saw one truncation there too. Comparison-script robustness, not a production concern.
+- `docs/evaluation.md` and the README's reported eval numbers (88.9%/88.9%, full 18-incident run) **still describe the pre-fix run** — not yet updated to a post-fix full re-run. The spot-check above is real evidence the fix helps, but isn't a full re-run with updated headline numbers.
+- **Live app (literal production URL) not end-to-end tested by Claude.** `POST /incidents/analyze` requires a Bearer token (`API_SECRET_KEY`), which is set in Render's dashboard, not in the local `.env` — Claude doesn't have it. User opted to test the live demo themselves in a browser rather than share the key or test locally.
 
 ## How to resume
 
-Start here: **re-run `scripts/run_rca_eval.py`** (costs ~$0.20-1 in API calls again — confirm with the user first). Spot-checking just the 5 previously-failed incidents (RCA-EVAL-006, 010, 016, 017, 018) first is cheaper and sufficient to confirm the fix worked before paying for a full 18-incident re-run. Once confirmed, update `docs/evaluation.md` and the README's numbers to the post-fix results — they currently describe the buggy run, not the fixed system. After that, work down the rest of the Phase 2 backlog above in roughly listed order (judge-prompt tightening is cheap and high-value; baselines B-D and expanding the eval set are the expensive long-tail items).
+1. **If the production max_tokens truncation needs fully closing**: the residual risk is real but small (1 reproducible failure across ~7 incident-runs in spot-checks). Options: raise `max_tokens` further (try 3072 in `rca.py` itself, matching what was tried for the comparison baseline), or add a retry-on-truncation before falling back to the generic placeholder, or prompt the model to be more concise. Not done yet.
+2. **Tighten the judge prompt** (`scripts/judge_prompt.md` + `scripts/judge.py`) to stop matching content-free/generic hypotheses on keyword overlap alone — now confirmed reproducible across 2 separate spot-checks on the same incident.
+3. **Full 18-incident re-run** once 1-2 are addressed, to get real post-fix headline numbers for `docs/evaluation.md` and the README (currently describe the pre-fix run).
+4. Then the rest of the Phase 2 backlog above (judge sampling/audit, baselines B-D, larger eval set, calibration/cost/latency).

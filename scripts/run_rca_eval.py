@@ -77,7 +77,7 @@ def run_baseline_a(incident: dict) -> dict:
         model=settings.model_rca,
         api_key=settings.anthropic_api_key,
         temperature=0,
-        max_tokens=2048,
+        max_tokens=3072,
     ).with_structured_output(RCAOutput)
 
     incident_text = (
@@ -216,6 +216,18 @@ def print_summary(name: str, agg: dict) -> None:
 
 async def main() -> None:
     incidents = load_eval()
+    results_path = RESULTS_PATH
+
+    requested_ids = sys.argv[1:]
+    if requested_ids:
+        incidents = [i for i in incidents if i["incident_id"] in requested_ids]
+        missing = set(requested_ids) - {i["incident_id"] for i in incidents}
+        if missing:
+            print(f"Warning: unknown incident ids ignored: {sorted(missing)}")
+        # Spot-checks write to a separate file so they never clobber a full
+        # 18-incident results.json with partial data.
+        results_path = RESULTS_PATH.with_name("rca_eval_results_spotcheck.json")
+
     print(f"\nRunning RCA reasoning eval on {len(incidents)} incidents...\n")
 
     a_scores, e_scores = [], []
@@ -244,9 +256,9 @@ async def main() -> None:
         "baseline_a": {"aggregate": a_agg, "per_incident": a_scores, "raw_outputs": a_raw},
         "baseline_e": {"aggregate": e_agg, "per_incident": e_scores, "raw_outputs": e_raw},
     }
-    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    RESULTS_PATH.write_text(json.dumps(results, indent=2), encoding="utf-8")
-    print(f"\nFull results written to {RESULTS_PATH}")
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    results_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    print(f"\nResults written to {results_path}")
 
     print_summary("Baseline A -- bare LLM (no retrieval/graph/triage)", a_agg)
     print_summary("Baseline E -- full RootCause system", e_agg)
