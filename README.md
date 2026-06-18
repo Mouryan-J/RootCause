@@ -45,6 +45,23 @@ Hybrid retrieval surfaces the correct runbook as the **top result 96% of the tim
 
 ---
 
+## RCA Reasoning Evaluation
+
+The retrieval benchmark above tests document search — its queries largely reuse the target runbook's own wording, so a high score mostly proves the embedding/BM25 stack finds the right document. It does not prove the system reaches the correct *diagnosis*.
+
+A separate, harder benchmark tests that: 18 incidents where the title and logs never name the failure mode, each with 2–3 plausible candidate causes (exactly one correct) and at least one distractor a keyword/embedding matcher would be tempted to pick. An LLM judge (different model than the one being graded) checks whether the system's top-ranked hypothesis names the correct underlying mechanism.
+
+| | Top-1 Accuracy | Top-3 Accuracy |
+|---|---|---|
+| Bare LLM, no retrieval/graph | 88.9% | 88.9% |
+| Full RootCause pipeline | 88.9% | 88.9% |
+
+The full writeup — methodology, results by difficulty tier, worked examples of genuine discrimination between competing causes, and honest failure cases (including a real production parsing bug this run surfaced) — is in [`docs/evaluation.md`](docs/evaluation.md).
+
+> Run `uv run python scripts/run_rca_eval.py` to reproduce (makes real LLM calls).
+
+---
+
 ## How it works
 
 1. **Submit**: paste an incident title, affected service, severity, and raw logs into the form
@@ -150,10 +167,13 @@ rootcause/
 │       └── lib/         # API client
 ├── data/
 │   ├── corpus/          # 252 runbooks and postmortems (source documents)
-│   └── eval/            # retrieval_eval.jsonl (50 labeled queries)
+│   └── eval/            # retrieval_eval.jsonl (50 queries) + rca_eval.jsonl (18 ambiguous incidents)
 ├── scripts/
 │   ├── seed_graph.py    # Populates Neo4j with 11 services + 21 dependency edges
-│   └── run_eval.py      # BM25 vs Hybrid retrieval benchmark
+│   ├── run_eval.py      # BM25 vs Hybrid retrieval benchmark
+│   └── run_rca_eval.py  # RCA reasoning benchmark (bare LLM vs full pipeline, LLM-judged)
+├── docs/
+│   └── evaluation.md    # RCA reasoning eval methodology, results, worked failure cases
 └── tests/unit/          # 17 unit tests (config, security, RAG, RCA parsing)
 ```
 
