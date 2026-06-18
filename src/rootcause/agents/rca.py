@@ -50,8 +50,12 @@ class RCAOutput(BaseModel):
     @classmethod
     def parse_string_fields(cls, values: dict) -> dict:
         for field in ("root_causes", "contributing_factors"):
-            if isinstance(values.get(field), str):
-                values[field] = json.loads(values[field])
+            raw = values.get(field)
+            if isinstance(raw, str):
+                # Claude Haiku occasionally appends trailing commentary after
+                # the JSON array; raw_decode parses just the first valid JSON
+                # value and ignores anything after it, instead of raising.
+                values[field] = json.JSONDecoder().raw_decode(raw.strip())[0]
         return values
 
 
@@ -98,7 +102,7 @@ def rca_node(state: IncidentState) -> dict:
             model=settings.model_rca,
             api_key=settings.anthropic_api_key,
             temperature=0,
-            max_tokens=1024,
+            max_tokens=2048,
         ).with_structured_output(RCAOutput)
 
         docs = state.get("retrieved_docs") or []

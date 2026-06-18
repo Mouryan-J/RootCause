@@ -77,7 +77,7 @@ def run_baseline_a(incident: dict) -> dict:
         model=settings.model_rca,
         api_key=settings.anthropic_api_key,
         temperature=0,
-        max_tokens=1024,
+        max_tokens=2048,
     ).with_structured_output(RCAOutput)
 
     incident_text = (

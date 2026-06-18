@@ -27,6 +27,18 @@ def test_rca_output_parses_json_string_fields():
     assert len(result.contributing_factors) == 2
 
 
+def test_rca_output_tolerates_trailing_data_after_json():
+    """Claude Haiku occasionally appends trailing commentary after the JSON
+    array (e.g. a stray closing newline + extra text) -- this used to raise
+    a pydantic 'Extra data' error and fall back to a content-free response.
+    The eval run that found this traced 100% of its misses to this bug."""
+    root_causes_str = json.dumps([{"description": "DB overload", "confidence": 0.85, "evidence": ["err1"]}]) + "\n\nNote: see also runbook RB-001."
+    data = {"root_causes": root_causes_str, "contributing_factors": "[]"}
+    result = RCAOutput(**data)
+    assert len(result.root_causes) == 1
+    assert result.root_causes[0].description == "DB overload"
+
+
 def test_root_cause_confidence_bounds():
     with pytest.raises(ValidationError):
         RootCauseItem(description="test", confidence=1.5, evidence=[])

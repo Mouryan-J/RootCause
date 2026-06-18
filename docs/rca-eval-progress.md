@@ -16,13 +16,15 @@ Tracks implementation of the RCA reasoning benchmark (response to the "inputs ar
 - [x] `docs/evaluation.md` — methodology, results by tier, 2 positive worked examples of genuine discrimination under ambiguity, 3 failure-case writeups (parsing bug, fallback-cascades-to-wrong-distractor, judge over-leniency), honest Limitations section
 - [x] README.md — added "RCA Reasoning Evaluation" section next to "Retrieval Evaluation", updated project structure block
 
-## Key finding worth acting on next
+## Key finding, fixed
 
-The `RCAOutput` parsing bug in `rootcause/agents/rca.py` (raises on trailing JSON data, and on `contributing_factors` missing when generation hits `max_tokens=1024`) is the single highest-leverage fix discovered by this eval — it caused 100% of the misses in this 18-incident set. Not fixed in this pass (out of scope: this work was eval-tooling only, no production agent code touched). Worth a follow-up session: raise `max_tokens` for the RCA call and harden the lenient JSON-string parsing in `RCAOutput.parse_string_fields`.
+The `RCAOutput` parsing bug in `rootcause/agents/rca.py` (raised on trailing JSON data, and on `contributing_factors` missing when generation hit `max_tokens=1024`) caused 100% of the misses in the 18-incident eval run above. **Fixed**: `max_tokens` raised 1024 → 2048 in both `rca.py` and `scripts/run_rca_eval.py`'s Baseline A (which independently hit the same bug); `RCAOutput.parse_string_fields` now uses `json.JSONDecoder().raw_decode()` instead of `json.loads()`, which parses the first valid JSON value and ignores trailing data instead of raising. Added a regression test (`test_rca_output_tolerates_trailing_data_after_json`) reproducing the exact failure mode found by the eval. All 18 unit tests pass; this was a pure code fix, no API calls made.
+
+**Not yet re-verified against real APIs** — the fix is unit-tested but `scripts/run_rca_eval.py` hasn't been re-run since. Re-running (full or spot-check on the previously-failed incidents: RCA-EVAL-006, 010, 016, 017, 018) would confirm the fix actually resolves the eval misses and update `docs/evaluation.md` / the README's reported numbers, which currently describe the pre-fix run.
 
 ## Phase 2 — backlog, not started (deferred per spec doc §6 step 5)
 
-- [ ] Fix the `RCAOutput` parsing bug found above (arguably higher leverage than anything below)
+- [ ] **Re-run `scripts/run_rca_eval.py`** (spot-check previously-failed incidents first, then full re-run) to verify the parsing fix actually improves accuracy, and update `docs/evaluation.md` + README with post-fix numbers
 - [ ] Tighten the judge prompt to require explicit mechanism-statement, not just topical/keyword overlap (found one false positive on manual spot-check)
 - [ ] Baseline B (RAG-only, no rerank/graph)
 - [ ] Baseline C (Hybrid retrieval, no graph)
