@@ -41,6 +41,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 from judge import judge_hypothesis
 
 from rootcause.agents.graph import run_analysis
+from rootcause.agents.rca import RETRY_NOTE
 from rootcause.agents.rca import SYSTEM_PROMPT as RCA_SYSTEM_PROMPT
 from rootcause.agents.rca import RCAOutput
 from rootcause.core.config import get_settings
@@ -105,7 +106,7 @@ def run_baseline_a(incident: dict) -> dict:
     """Incident text straight to claude-haiku. Tests parametric reasoning alone."""
     settings = get_settings()
     if not settings.anthropic_api_key:
-        return {"root_causes": [], "error": "anthropic_api_key not set"}
+        return {"root_causes": [], "error": "anthropic_api_key not set", "fallback": True}
 
     from langchain_anthropic import ChatAnthropic
 
@@ -128,17 +129,26 @@ def run_baseline_a(incident: dict) -> dict:
     if metrics:
         incident_text += f"\nMetrics: {metrics}\n"
 
+    base_content = f"{RCA_SYSTEM_PROMPT}\n\n{incident_text}"
     try:
-        result: RCAOutput = llm.invoke([
-            {"role": "user", "content": f"{RCA_SYSTEM_PROMPT}\n\n{incident_text}"},
-        ])
-        return {
-            "root_causes": [rc.model_dump() for rc in result.root_causes],
-            "contributing_factors": result.contributing_factors,
-        }
-    except Exception as exc:
-        log.warning("Baseline A failed for %s: %s", incident["incident_id"], exc)
-        return {"root_causes": [], "error": str(exc)}
+        result: RCAOutput = llm.invoke([{"role": "user", "content": base_content}])
+    except Exception as first_exc:
+        log.warning(
+            "Baseline A generation failed for %s, retrying once with a concise instruction: %s",
+            incident["incident_id"],
+            first_exc,
+        )
+        try:
+            result = llm.invoke([{"role": "user", "content": base_content + RETRY_NOTE}])
+        except Exception as exc:
+            log.warning("Baseline A failed for %s after retry: %s", incident["incident_id"], exc)
+            return {"root_causes": [], "error": str(exc), "fallback": True}
+
+    return {
+        "root_causes": [rc.model_dump() for rc in result.root_causes],
+        "contributing_factors": result.contributing_factors,
+        "fallback": False,
+    }
 
 
 # ── Baseline E: full production pipeline ────────────────────────────────────
