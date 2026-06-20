@@ -118,6 +118,7 @@ async def run_baseline_e(incident: dict) -> dict:
         "root_causes": final.get("root_causes") or [],
         "contributing_factors": final.get("contributing_factors") or [],
         "retrieved_docs": final.get("retrieved_docs") or [],
+        "fallback": bool(final.get("fallback", False)),
     }
 
 
@@ -151,6 +152,7 @@ def hallucination_rate(top_hypothesis: dict, source_lines: list[str]) -> float |
 def score_run(incident: dict, run_result: dict, source_lines: list[str]) -> dict:
     root_causes = run_result.get("root_causes") or []
     correct_id = _correct_cause_id(incident)
+    is_fallback = bool(run_result.get("fallback", False))
 
     judged = []
     for rc in root_causes[:3]:
@@ -169,33 +171,46 @@ def score_run(incident: dict, run_result: dict, source_lines: list[str]) -> dict
         "top1_correct": top1_correct,
         "top3_correct": top3_correct,
         "hallucination_rate": hrate,
+        # Pipeline hit its content-free fallback path -- exclude from accuracy
+        # numerator/denominator instead of letting the judge score a generic
+        # placeholder as either right or wrong; track it as its own rate.
+        "fallback": is_fallback,
         "error": run_result.get("error"),
     }
 
 
-def _aggregate(scores: list[dict]) -> dict:
-    n = len(scores)
+def _accuracy_stats(scores: list[dict]) -> dict:
+    scored = [s for s in scores if not s["fallback"]]
+    n = len(scored)
     if n == 0:
+        return {"n": 0, "top1_accuracy": None, "top3_accuracy": None}
+    return {
+        "n": n,
+        "top1_accuracy": round(sum(s["top1_correct"] for s in scored) / n, 3),
+        "top3_accuracy": round(sum(s["top3_correct"] for s in scored) / n, 3),
+    }
+
+
+def _aggregate(scores: list[dict]) -> dict:
+    total_n = len(scores)
+    if total_n == 0:
         return {}
-    top1 = sum(s["top1_correct"] for s in scores) / n
-    top3 = sum(s["top3_correct"] for s in scores) / n
-    hrates = [s["hallucination_rate"] for s in scores if s["hallucination_rate"] is not None]
+    fallback_count = sum(s["fallback"] for s in scores)
+    scored = [s for s in scores if not s["fallback"]]
+
+    hrates = [s["hallucination_rate"] for s in scored if s["hallucination_rate"] is not None]
     avg_hrate = sum(hrates) / len(hrates) if hrates else None
 
     by_tier: dict[int, dict] = {}
     for tier in sorted({s["difficulty_tier"] for s in scores}):
-        tier_scores = [s for s in scores if s["difficulty_tier"] == tier]
-        tn = len(tier_scores)
-        by_tier[tier] = {
-            "n": tn,
-            "top1_accuracy": round(sum(s["top1_correct"] for s in tier_scores) / tn, 3),
-            "top3_accuracy": round(sum(s["top3_correct"] for s in tier_scores) / tn, 3),
-        }
+        by_tier[tier] = _accuracy_stats([s for s in scores if s["difficulty_tier"] == tier])
 
+    stats = _accuracy_stats(scores)
     return {
-        "n": n,
-        "top1_accuracy": round(top1, 3),
-        "top3_accuracy": round(top3, 3),
+        "total_n": total_n,
+        "fallback_count": fallback_count,
+        "fallback_rate": round(fallback_count / total_n, 3),
+        **stats,
         "avg_hallucination_rate": round(avg_hrate, 3) if avg_hrate is not None else None,
         "by_difficulty_tier": by_tier,
     }
@@ -203,15 +218,20 @@ def _aggregate(scores: list[dict]) -> dict:
 
 def print_summary(name: str, agg: dict) -> None:
     print(f"\n{'-' * 50}")
-    print(f"  {name}  (n={agg.get('n')})")
+    print(f"  {name}  (total n={agg.get('total_n')}, fallback excluded={agg.get('fallback_count')})")
     print(f"{'-' * 50}")
-    print(f"  Top-1 RCA Accuracy   {agg.get('top1_accuracy', 0) * 100:5.1f}%")
-    print(f"  Top-3 RCA Accuracy   {agg.get('top3_accuracy', 0) * 100:5.1f}%")
+    print(f"  Fallback Rate   {agg.get('fallback_rate', 0) * 100:5.1f}%")
+    top1 = agg.get("top1_accuracy")
+    top3 = agg.get("top3_accuracy")
+    print(f"  Top-1 RCA Accuracy   {top1 * 100:5.1f}%  (n={agg.get('n')})" if top1 is not None else "  Top-1 RCA Accuracy   n/a (all fallback)")
+    print(f"  Top-3 RCA Accuracy   {top3 * 100:5.1f}%  (n={agg.get('n')})" if top3 is not None else "  Top-3 RCA Accuracy   n/a (all fallback)")
     hr = agg.get("avg_hallucination_rate")
     print(f"  Avg Hallucination Rate  {hr * 100:5.1f}%" if hr is not None else "  Avg Hallucination Rate  n/a")
     print("  By difficulty tier:")
     for tier, stats in agg.get("by_difficulty_tier", {}).items():
-        print(f"    Tier {tier} (n={stats['n']}): Top-1 {stats['top1_accuracy'] * 100:5.1f}%  Top-3 {stats['top3_accuracy'] * 100:5.1f}%")
+        t1 = f"{stats['top1_accuracy'] * 100:5.1f}%" if stats["top1_accuracy"] is not None else "n/a"
+        t3 = f"{stats['top3_accuracy'] * 100:5.1f}%" if stats["top3_accuracy"] is not None else "n/a"
+        print(f"    Tier {tier} (n={stats['n']}): Top-1 {t1}  Top-3 {t3}")
 
 
 async def main() -> None:
@@ -266,8 +286,11 @@ async def main() -> None:
     print(f"\n{'=' * 50}")
     print("  Improvement (E vs A)")
     print(f"{'=' * 50}")
-    print(f"  Top-1 Accuracy  {(e_agg['top1_accuracy'] - a_agg['top1_accuracy']) * 100:+.1f}%")
-    print(f"  Top-3 Accuracy  {(e_agg['top3_accuracy'] - a_agg['top3_accuracy']) * 100:+.1f}%")
+    if a_agg["top1_accuracy"] is not None and e_agg["top1_accuracy"] is not None:
+        print(f"  Top-1 Accuracy  {(e_agg['top1_accuracy'] - a_agg['top1_accuracy']) * 100:+.1f}%")
+        print(f"  Top-3 Accuracy  {(e_agg['top3_accuracy'] - a_agg['top3_accuracy']) * 100:+.1f}%")
+    else:
+        print("  n/a -- one or both baselines had no non-fallback incidents to compare")
 
 
 if __name__ == "__main__":
