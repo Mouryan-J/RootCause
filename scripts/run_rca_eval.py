@@ -44,22 +44,58 @@ from rootcause.agents.graph import run_analysis
 from rootcause.agents.rca import SYSTEM_PROMPT as RCA_SYSTEM_PROMPT
 from rootcause.agents.rca import RCAOutput
 from rootcause.core.config import get_settings
+from rootcause.db.neo4j_client import close_neo4j, init_neo4j
 
 logging.basicConfig(level=logging.WARNING)
 log = logging.getLogger(__name__)
 
 EVAL_PATH = Path("data/eval/rca_eval.jsonl")
+EVAL_V2_PATH = Path("data/eval/rca_eval_v2.jsonl")
 RESULTS_PATH = Path("data/eval/rca_eval_results.json")
 GROUNDING_MATCH_THRESHOLD = 0.4
 
 
 def load_eval() -> list[dict]:
-    with open(EVAL_PATH, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+    incidents = []
+    for path in (EVAL_PATH, EVAL_V2_PATH):
+        if not path.exists():
+            continue
+        with open(path, encoding="utf-8") as f:
+            incidents.extend(json.loads(line) for line in f if line.strip())
+    return incidents
 
 
 def _correct_cause_id(incident: dict) -> str:
     return next(c["id"] for c in incident["candidate_causes"] if c["is_correct"])
+
+
+def _incident_title(incident: dict) -> str:
+    """v1 incidents use `title`; v2 incidents use `alert_title`."""
+    return incident.get("alert_title") or incident.get("title", "")
+
+
+def _incident_tier(incident: dict) -> int:
+    """v1 incidents use `difficulty_tier`; v2 incidents use `tier`."""
+    return incident.get("difficulty_tier", incident.get("tier"))
+
+
+def _incident_logs_text(incident: dict) -> str:
+    """v1 incidents carry a single `logs` string. v2 incidents carry a
+    structured `timeline` + `logs_excerpt` instead -- combined here into one
+    chronological text block so both schemas flow through the same
+    prompt-building code in both baselines."""
+    if "logs" in incident:
+        return incident["logs"]
+    lines = [f"[{e['t']}] {e['event']}" for e in incident.get("timeline", [])]
+    lines.extend(incident.get("logs_excerpt", []))
+    return "\n".join(lines)
+
+
+def _incident_metrics(incident: dict) -> dict | None:
+    """v2-only: a structured numeric metrics_snapshot the model must use to
+    rule distractors in/out. v1 incidents have no equivalent (their metrics
+    live inline as text inside `logs`), so this is None for them."""
+    return incident.get("metrics_snapshot")
 
 
 # ── Baseline A: bare LLM, no retrieval/graph/triage/remediation ────────────
@@ -80,14 +116,17 @@ def run_baseline_a(incident: dict) -> dict:
         max_tokens=3072,
     ).with_structured_output(RCAOutput)
 
+    metrics = _incident_metrics(incident)
     incident_text = (
         f"## Incident\n"
-        f"Title: {incident['title']}\n"
+        f"Title: {_incident_title(incident)}\n"
         f"Service: {incident['service']}\n"
         f"Severity: {incident['severity']}\n\n"
         f"## Retrieved Documents\nNo runbooks retrieved.\n\n"
-        f"Logs:\n{incident['logs']}\n"
+        f"Logs:\n{_incident_logs_text(incident)}\n"
     )
+    if metrics:
+        incident_text += f"\nMetrics: {metrics}\n"
 
     try:
         result: RCAOutput = llm.invoke([
@@ -108,16 +147,18 @@ def run_baseline_a(incident: dict) -> dict:
 async def run_baseline_e(incident: dict) -> dict:
     final = await run_analysis(
         incident_id=uuid.uuid4(),
-        title=incident["title"],
-        description=incident["title"],
+        title=_incident_title(incident),
+        description=_incident_title(incident),
         service=incident["service"],
         severity=incident["severity"],
-        logs=incident["logs"],
+        logs=_incident_logs_text(incident),
+        metrics=_incident_metrics(incident),
     )
     return {
         "root_causes": final.get("root_causes") or [],
         "contributing_factors": final.get("contributing_factors") or [],
         "retrieved_docs": final.get("retrieved_docs") or [],
+        "service_graph": final.get("service_graph") or {},
         "fallback": bool(final.get("fallback", False)),
     }
 
@@ -165,7 +206,7 @@ def score_run(incident: dict, run_result: dict, source_lines: list[str]) -> dict
 
     return {
         "incident_id": incident["incident_id"],
-        "difficulty_tier": incident["difficulty_tier"],
+        "difficulty_tier": _incident_tier(incident),
         "category": incident["category"],
         "judged_hypotheses": judged,
         "top1_correct": top1_correct,
@@ -248,23 +289,36 @@ async def main() -> None:
         # 18-incident results.json with partial data.
         results_path = RESULTS_PATH.with_name("rca_eval_results_spotcheck.json")
 
+    # Baseline E's retrieval_node calls get_service_dependencies(), which
+    # reads a connection only init_neo4j() sets up -- normally done by the
+    # FastAPI app's startup lifecycle, which this standalone script never
+    # runs. Without this, every eval run silently gets an empty dependency
+    # graph regardless of what's actually seeded in Neo4j.
+    try:
+        await init_neo4j()
+    except Exception as exc:
+        log.warning("Neo4j unavailable for this run -- dependency graph will be empty: %s", exc)
+
     print(f"\nRunning RCA reasoning eval on {len(incidents)} incidents...\n")
 
     a_scores, e_scores = [], []
     a_raw, e_raw = {}, {}
 
-    for i, incident in enumerate(incidents):
-        log_lines = incident["logs"].split("\n")
-        print(f"[{i + 1}/{len(incidents)}] {incident['incident_id']}: {incident['title'][:60]}")
+    try:
+        for i, incident in enumerate(incidents):
+            log_lines = _incident_logs_text(incident).split("\n")
+            print(f"[{i + 1}/{len(incidents)}] {incident['incident_id']}: {_incident_title(incident)[:60]}")
 
-        a_result = run_baseline_a(incident)
-        a_raw[incident["incident_id"]] = a_result
-        a_scores.append(score_run(incident, a_result, log_lines))
+            a_result = run_baseline_a(incident)
+            a_raw[incident["incident_id"]] = a_result
+            a_scores.append(score_run(incident, a_result, log_lines))
 
-        e_result = await run_baseline_e(incident)
-        e_raw[incident["incident_id"]] = e_result
-        e_source_lines = log_lines + [d["excerpt"] for d in e_result.get("retrieved_docs", [])]
-        e_scores.append(score_run(incident, e_result, e_source_lines))
+            e_result = await run_baseline_e(incident)
+            e_raw[incident["incident_id"]] = e_result
+            e_source_lines = log_lines + [d["excerpt"] for d in e_result.get("retrieved_docs", [])]
+            e_scores.append(score_run(incident, e_result, e_source_lines))
+    finally:
+        await close_neo4j()
 
     a_agg = _aggregate(a_scores)
     e_agg = _aggregate(e_scores)
