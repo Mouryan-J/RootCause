@@ -1,4 +1,7 @@
-from rootcause.rag.retriever import HybridRetriever, RetrievalResult, _rrf, _tokenize
+import sys
+import types
+
+from rootcause.rag.retriever import MIN_RERANK_SCORE, HybridRetriever, RetrievalResult, _rrf, _tokenize
 
 
 def test_tokenize_lowercases():
@@ -45,3 +48,46 @@ def test_retriever_falls_back_to_bm25_without_qdrant(monkeypatch):
     assert len(results) > 0
     assert isinstance(results[0], RetrievalResult)
     assert results[0].doc_id in ("RB-001", "RB-002")
+
+
+def _fake_cohere_module(relevance_scores: list[float]):
+    """Build a fake `cohere` module whose Client().rerank() returns the given
+    per-document relevance scores, in document order."""
+    hit_cls = types.SimpleNamespace
+    response = types.SimpleNamespace(
+        results=[hit_cls(index=i, relevance_score=s) for i, s in enumerate(relevance_scores)]
+    )
+
+    class FakeClient:
+        def __init__(self, api_key):
+            pass
+
+        def rerank(self, model, query, documents, top_n):
+            return response
+
+    fake_module = types.ModuleType("cohere")
+    fake_module.Client = FakeClient
+    return fake_module
+
+
+def test_rerank_drops_results_below_min_score(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cohere", _fake_cohere_module([0.9, 0.01, 0.5]))
+    retriever = HybridRetriever()
+    results = [
+        RetrievalResult(doc_id=f"D{i}", title="t", content="c", source="runbook", score=0.0, metadata={})
+        for i in range(3)
+    ]
+    reranked = retriever.rerank("query", results, cohere_api_key="fake-key", top_k=3)
+    assert all(r.score >= MIN_RERANK_SCORE for r in reranked)
+    assert [r.doc_id for r in reranked] == ["D0", "D2"]
+
+
+def test_rerank_returns_empty_when_all_below_min_score(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cohere", _fake_cohere_module([0.01, 0.02]))
+    retriever = HybridRetriever()
+    results = [
+        RetrievalResult(doc_id=f"D{i}", title="t", content="c", source="runbook", score=0.0, metadata={})
+        for i in range(2)
+    ]
+    reranked = retriever.rerank("query", results, cohere_api_key="fake-key", top_k=2)
+    assert reranked == []

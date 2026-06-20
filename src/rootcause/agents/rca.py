@@ -7,6 +7,7 @@ Falls back to a heuristic summary when the API key is absent.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 
@@ -16,6 +17,10 @@ from rootcause.agents.state import IncidentState
 from rootcause.core.config import get_settings
 
 log = logging.getLogger(__name__)
+
+# Below this fuzzy-match ratio, a cited evidence string is considered
+# unconnected to the actual logs/docs and dropped as likely fabricated.
+GROUNDING_MATCH_THRESHOLD = 0.4
 
 SYSTEM_PROMPT = """\
 You are an expert site reliability engineer performing root cause analysis.
@@ -59,6 +64,36 @@ class RCAOutput(BaseModel):
         return values
 
 
+def _evidence_grounded(evidence: str, source_lines: list[str]) -> bool:
+    ev = evidence.lower().strip()
+    if not ev:
+        return True
+    for line in source_lines:
+        line_l = line.lower()
+        if ev in line_l or line_l in ev:
+            return True
+        if difflib.SequenceMatcher(None, ev, line_l).ratio() >= GROUNDING_MATCH_THRESHOLD:
+            return True
+    return False
+
+
+def _filter_grounded(root_causes: list[RootCauseItem], source_lines: list[str]) -> list[RootCauseItem]:
+    filtered = []
+    for rc in root_causes:
+        grounded_evidence = [e for e in rc.evidence if _evidence_grounded(e, source_lines)]
+        if not grounded_evidence:
+            log.warning("Dropping root cause with no grounded evidence: %.80s", rc.description)
+            continue
+        if len(grounded_evidence) < len(rc.evidence):
+            log.info(
+                "Dropped %d ungrounded evidence line(s) from root cause: %.80s",
+                len(rc.evidence) - len(grounded_evidence),
+                rc.description,
+            )
+        filtered.append(RootCauseItem(description=rc.description, confidence=rc.confidence, evidence=grounded_evidence))
+    return filtered
+
+
 def _format_docs(docs: list[dict]) -> str:
     if not docs:
         return "No runbooks retrieved."
@@ -86,7 +121,26 @@ def _fallback_rca(state: IncidentState) -> dict:
         "runbooks_referenced": runbooks,
         "model_used": "fallback",
         "completed_steps": completed,
+        # Lets callers (eval scoring, monitoring) deterministically identify a
+        # content-free fallback response instead of fuzzy-matching its text --
+        # the judge over-leniency bug was caused by exactly that ambiguity.
+        "fallback": True,
     }
+
+
+RETRY_NOTE = (
+    "\n\nIMPORTANT: Your previous response could not be parsed -- it was either "
+    "truncated before completion or contained malformed JSON. Be more concise "
+    "this time: at most 2 evidence items per root cause and 3 contributing "
+    "factors, and make sure the JSON is complete and valid."
+)
+
+
+def _invoke_rca(llm, incident_text: str, retry: bool = False) -> RCAOutput:
+    content = f"{SYSTEM_PROMPT}\n\n{incident_text}"
+    if retry:
+        content += RETRY_NOTE
+    return llm.invoke([{"role": "user", "content": content}])
 
 
 def rca_node(state: IncidentState) -> dict:
@@ -135,26 +189,36 @@ def rca_node(state: IncidentState) -> dict:
 
         incident_text += f"\n## Retrieved Documents\n{_format_docs(docs)}"
 
-        result: RCAOutput = llm.invoke([
-            {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{incident_text}"},
-        ])
+        try:
+            result: RCAOutput = _invoke_rca(llm, incident_text)
+        except Exception as first_exc:
+            log.warning("RCA generation failed, retrying once with a concise instruction: %s", first_exc)
+            result = _invoke_rca(llm, incident_text, retry=True)
+
+        source_lines = (state.get("logs") or "").split("\n") + [d["excerpt"] for d in docs]
+        grounded_root_causes = _filter_grounded(result.root_causes, source_lines)
 
         runbooks_referenced = [
             d["doc_id"] for d in docs if d.get("source") == "runbook"
         ]
         completed = list(state.get("completed_steps") or []) + ["rca"]
-        log.info("RCA complete: %d root causes identified", len(result.root_causes))
+        log.info(
+            "RCA complete: %d root causes identified, %d after grounding filter",
+            len(result.root_causes),
+            len(grounded_root_causes),
+        )
 
         return {
-            "root_causes": [rc.model_dump() for rc in result.root_causes],
+            "root_causes": [rc.model_dump() for rc in grounded_root_causes],
             "contributing_factors": result.contributing_factors,
             "runbooks_referenced": runbooks_referenced,
             "model_used": settings.model_rca,
             "completed_steps": completed,
+            "fallback": False,
         }
 
     except Exception as exc:
-        log.warning("RCA LLM failed, using fallback: %s", exc)
+        log.warning("RCA LLM failed after retry, using fallback: %s", exc)
         result = _fallback_rca(state)
         result["error"] = str(exc)
         return result

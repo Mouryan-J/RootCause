@@ -15,6 +15,10 @@ from rootcause.rag.loader import Document, load_corpus
 
 log = logging.getLogger(__name__)
 
+# Cohere relevance_score below this means the reranker itself judged the
+# doc irrelevant to the query; passing it to the RCA model is just noise.
+MIN_RERANK_SCORE = 0.05
+
 
 @dataclass
 class RetrievalResult:
@@ -194,7 +198,12 @@ class HybridRetriever:
             reranked = [results[hit.index] for hit in response.results]
             for i, r in enumerate(reranked):
                 r.score = response.results[i].relevance_score
-            return reranked
+            # Cohere's relevance_score is 0-1; below this, the doc is noise
+            # the reranker itself flagged as irrelevant, not a real match.
+            grounded = [r for r in reranked if r.score >= MIN_RERANK_SCORE]
+            if not grounded:
+                log.info("All reranked docs scored below %.2f, returning none", MIN_RERANK_SCORE)
+            return grounded
         except Exception as exc:
             log.debug("Cohere rerank failed, using fused order: %s", exc)
             return results[:top_k]

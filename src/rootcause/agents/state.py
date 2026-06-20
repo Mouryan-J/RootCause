@@ -32,6 +32,7 @@ class IncidentState(TypedDict, total=False):
     # ── RCA output ────────────────────────────────────────────────────────────
     root_causes: list[dict]         # [{description, confidence, evidence: []}]
     contributing_factors: list[str]
+    fallback: bool                  # True if rca_node hit its content-free fallback path
 
     # ── Remediation output ────────────────────────────────────────────────────
     remediation_steps: list[str]
