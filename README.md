@@ -24,7 +24,7 @@ A multi-agent AI system that investigates production incidents and produces rank
 - **Incident history**: browse all past incidents with severity, status, and relative timestamps
 - **LLM observability**: every agent call traced in Langfuse with token counts and cost per incident
 - **Redis caching**: completed analyses cached for 30 minutes, eliminating repeat DB hits
-- **CI/CD**: GitHub Actions runs ruff lint and 17 pytest unit tests on every push
+- **CI/CD**: GitHub Actions runs ruff lint and 27 pytest unit tests on every push
 
 ---
 
@@ -49,14 +49,18 @@ Hybrid retrieval surfaces the correct runbook as the **top result 96% of the tim
 
 The retrieval benchmark above tests document search — its queries largely reuse the target runbook's own wording, so a high score mostly proves the embedding/BM25 stack finds the right document. It does not prove the system reaches the correct *diagnosis*.
 
-A separate, harder benchmark tests that: 18 incidents where the title and logs never name the failure mode, each with 2–3 plausible candidate causes (exactly one correct) and at least one distractor a keyword/embedding matcher would be tempted to pick. An LLM judge (different model than the one being graded) checks whether the system's top-ranked hypothesis names the correct underlying mechanism.
+A separate, harder benchmark tests that: 8 hand-authored incidents (`rca_eval_v2.jsonl`) across 7 distinct failure classes (resource contention, feature-flag regressions, schema mismatches, dependency-version skew, cascading third-party latency, and a cache-invalidation race condition), where the title and logs never name the failure mode and every wrong candidate cause shares literal evidence with the real one — not a trivially-nominal distractor. A mechanism-matching LLM judge (a different model than the one being graded, hardened against scoring a vague restatement as correct) checks whether the system's top-ranked hypothesis names the actual causal mechanism, not just a topically-related guess.
 
-| | Top-1 Accuracy | Top-3 Accuracy |
-|---|---|---|
-| Bare LLM, no retrieval/graph | 88.9% | 88.9% |
-| Full RootCause pipeline | 88.9% | 88.9% |
+| | Top-1 Accuracy | Top-3 Accuracy | Hallucination Rate | Fallback Rate |
+|---|---|---|---|---|
+| Bare LLM, no retrieval/graph | 100.0% (n=7) | 100.0% (n=7) | 7.1%* | 12.5% |
+| Full RootCause pipeline | 100.0% (n=8) | 100.0% (n=8) | 0.0% | 0.0% |
 
-The full writeup — methodology, results by difficulty tier, worked examples of genuine discrimination between competing causes, and honest failure cases (including a real production parsing bug this run surfaced) — is in [`docs/evaluation.md`](docs/evaluation.md).
+\* both flagged citations were synthesized paraphrases of real evidence, not fabrications — see `docs/evaluation.md` for detail. End-to-end pipeline latency: 11–20s per incident, median ~15s.
+
+**Honest takeaway:** a bare LLM call ties the full multi-agent pipeline on raw accuracy at this scale (n=8) — the architecture's value isn't accuracy on this benchmark, it's grounding (the production pipeline never falls back to a content-free response in this run) and the bugs the evaluation process itself caught along the way (see below). The original 18-incident benchmark and its since-superseded numbers are kept in `docs/evaluation.md` for transparency.
+
+The full writeup — methodology, worked examples, two real production bugs this evaluation process found and fixed, and honest limitations — is in [`docs/evaluation.md`](docs/evaluation.md).
 
 > Run `uv run python scripts/run_rca_eval.py` to reproduce (makes real LLM calls).
 
@@ -167,14 +171,14 @@ rootcause/
 │       └── lib/         # API client
 ├── data/
 │   ├── corpus/          # 252 runbooks and postmortems (source documents)
-│   └── eval/            # retrieval_eval.jsonl (50 queries) + rca_eval.jsonl (18 ambiguous incidents)
+│   └── eval/            # retrieval_eval.jsonl (50 queries) + rca_eval.jsonl (18 incidents, v1) + rca_eval_v2.jsonl (8 incidents, hardened schema)
 ├── scripts/
 │   ├── seed_graph.py    # Populates Neo4j with 11 services + 21 dependency edges
 │   ├── run_eval.py      # BM25 vs Hybrid retrieval benchmark
 │   └── run_rca_eval.py  # RCA reasoning benchmark (bare LLM vs full pipeline, LLM-judged)
 ├── docs/
 │   └── evaluation.md    # RCA reasoning eval methodology, results, worked failure cases
-└── tests/unit/          # 17 unit tests (config, security, RAG, RCA parsing)
+└── tests/unit/          # 27 unit tests (config, security, RAG, RCA parsing, grounding filter, retry/fallback logic)
 ```
 
 ---
