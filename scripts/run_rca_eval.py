@@ -52,13 +52,22 @@ log = logging.getLogger(__name__)
 
 EVAL_PATH = Path("data/eval/rca_eval.jsonl")
 EVAL_V2_PATH = Path("data/eval/rca_eval_v2.jsonl")
+# Separate file, kept apart from the main v1/v2 set: these incidents are
+# deliberately constructed so Baseline A structurally cannot name the
+# correct dependency (no service names in logs/metrics, only a type
+# signature) -- a graph-necessity probe, not a general reasoning benchmark.
+# Always loaded (so `category` filtering at report time is the same code
+# path either way), but must be reported separately by category --
+# blending it into one combined accuracy number would conflate two
+# different research questions (general reasoning vs. graph necessity).
+EVAL_GRAPH_TEST_PATH = Path("data/eval/rca_eval_graph_test.jsonl")
 RESULTS_PATH = Path("data/eval/rca_eval_results.json")
 GROUNDING_MATCH_THRESHOLD = 0.4
 
 
 def load_eval() -> list[dict]:
     incidents = []
-    for path in (EVAL_PATH, EVAL_V2_PATH):
+    for path in (EVAL_PATH, EVAL_V2_PATH, EVAL_GRAPH_TEST_PATH):
         if not path.exists():
             continue
         with open(path, encoding="utf-8") as f:
