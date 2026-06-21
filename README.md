@@ -47,20 +47,29 @@ Hybrid retrieval surfaces the correct runbook as the **top result 96% of the tim
 
 ## RCA Reasoning Evaluation
 
-The retrieval benchmark above tests document search — its queries largely reuse the target runbook's own wording, so a high score mostly proves the embedding/BM25 stack finds the right document. It does not prove the system reaches the correct *diagnosis*.
+The retrieval benchmark above tests document search, not diagnosis — its queries reuse the target runbook's own wording, so a high score mostly proves the embedding/BM25 stack finds the right document. This benchmark tests diagnosis directly: 8 hand-authored incidents (`rca_eval_v2.jsonl`) across 7 failure classes — resource contention, feature-flag regressions, schema mismatches, dependency-version skew, cascading third-party latency, a cache-invalidation race — where the title and logs never name the failure mode, and every wrong candidate cause shares real evidence with the correct one rather than being an obvious miss. A separate LLM (not the one being graded) judges whether the top-ranked hypothesis names the actual mechanism.
 
-A separate, harder benchmark tests that: 8 hand-authored incidents (`rca_eval_v2.jsonl`) across 7 distinct failure classes (resource contention, feature-flag regressions, schema mismatches, dependency-version skew, cascading third-party latency, and a cache-invalidation race condition), where the title and logs never name the failure mode and every wrong candidate cause shares literal evidence with the real one — not a trivially-nominal distractor. A mechanism-matching LLM judge (a different model than the one being graded, hardened against scoring a vague restatement as correct) checks whether the system's top-ranked hypothesis names the actual causal mechanism, not just a topically-related guess.
+**General reasoning**
 
-| | Top-1 Accuracy | Top-3 Accuracy | Hallucination Rate | Fallback Rate |
+| | Top-1 | Top-3 | Hallucination | Fallback |
 |---|---|---|---|---|
-| Bare LLM, no retrieval/graph | 100.0% (n=7) | 100.0% (n=7) | 7.1%* | 12.5% |
-| Full RootCause pipeline | 100.0% (n=8) | 100.0% (n=8) | 0.0% | 0.0% |
+| Bare LLM, no retrieval/graph | 100% (n=7) | 100% (n=7) | 7.1%\* | 12.5% |
+| Full pipeline | 100% (n=8) | 100% (n=8) | 0.0% | 0.0% |
 
-\* both flagged citations were synthesized paraphrases of real evidence, not fabrications — see `docs/evaluation.md` for detail. End-to-end pipeline latency: 11–20s per incident, median ~15s.
+\* Checked by hand: both flagged citations were real evidence, not fabrications — see `docs/evaluation.md`.
 
-**Honest takeaway:** a bare LLM call ties the full multi-agent pipeline on raw accuracy whenever the logs already name the services involved — at this scale (n=8), the extra machinery doesn't change the verdict. So a follow-up probe (`rca_eval_graph_test.jsonl`, 3 incidents) removed every service name from the logs, leaving only a *type signature* (e.g. a lock-wait-timeout error implies a database, without saying which one). Result: **the bare LLM never once named the actual dependency (0/3)** — it could only describe it generically ("downstream transactional store"). **The full pipeline, using its Neo4j dependency-graph lookup, named it correctly every time (3/3)** — "lock contention on postgres," "Redis cache eviction," "degraded latency to payment-service." That's the one concrete, measured point where the architecture does something a bare LLM structurally can't: turn a type-correct shrug into an actionable, specific diagnosis. The original 18-incident benchmark and its since-superseded numbers are kept in `docs/evaluation.md` for transparency.
+A bare LLM call ties the full pipeline here. When the logs already name every service involved, the extra retrieval/graph/triage machinery doesn't change the verdict — so the next test removed that shortcut.
 
-The full writeup — methodology, worked examples, two real production bugs this evaluation process found and fixed, and honest limitations — is in [`docs/evaluation.md`](docs/evaluation.md).
+**Graph-dependency probe**
+
+3 incidents (`rca_eval_graph_test.jsonl`) where the logs give only a *type* signature — a lock-wait-timeout implies a database, key-eviction implies a cache — and never name the dependency itself:
+
+| | Named the actual dependency |
+|---|---|
+| Bare LLM | 0/3 — generic ("a downstream transactional store") |
+| Full pipeline | 3/3 — specific ("lock contention on postgres") |
+
+This is the one measured case where the dependency graph earns its place: it turns a type-correct guess into an actionable diagnosis. Full methodology, worked examples, and two production bugs this evaluation caught along the way are in [`docs/evaluation.md`](docs/evaluation.md).
 
 > Run `uv run python scripts/run_rca_eval.py` to reproduce (makes real LLM calls).
 
@@ -222,5 +231,5 @@ uv run pytest tests/unit/ -v
 uv run ruff check src/ tests/
 ```
 
-17 unit tests covering config, security, RAG retrieval, and RCA agent parsing.
+27 unit tests covering config, security, RAG retrieval, and RCA agent parsing/grounding/retry logic.
 
