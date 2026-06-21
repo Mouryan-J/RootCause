@@ -146,10 +146,49 @@ means this benchmark's actual demonstrated value is different from "the
 architecture improves accuracy": it's (1) the grounding/hallucination-control
 behavior (Baseline E never fell back to a content-free response across this
 run; the grounding filter strips fabricated evidence before it reaches the
-output), and (2) the two real production bugs the evaluation process itself
-found and fixed along the way. Isolating *which* architectural piece (if any)
-contributes accuracy would require Baselines B/C/D — not run yet, see
-Limitations.
+output), (2) the two real production bugs the evaluation process itself
+found and fixed along the way, and (3) a concrete, measured case where the
+dependency graph *does* earn its complexity — see below.
+
+## Graph-Necessity Probe
+
+The v1/v2 incidents above all name the involved services directly in their
+logs (e.g. "payment-service: WARN call to auth-service..."), so the model
+can read the dependency chain straight from the text — it never needs the
+Neo4j graph lookup to know who calls whom. This probe asks the opposite
+question: what happens when the logs deliberately *don't* name a
+dependency, giving only its *type signature* (a lock-wait-timeout style
+error implies a transactional database; key-eviction implies a cache;
+a circuit-breaker trip implies a service-to-service call)?
+
+`data/eval/rca_eval_graph_test.jsonl` has 3 such incidents (one per
+dependency type), verified by direct string search to contain zero
+service names in `logs_excerpt` or `metrics_snapshot` other than the
+symptomatic service itself.
+
+**Result: both baselines hit 100% Top-1 accuracy by the judge's
+mechanism-matching criterion — which turned out to be the wrong metric for
+this question.** The judge is deliberately lenient on exact wording (by
+design, for the general eval — punishing valid paraphrases would be a
+worse bug than this one), so it credited Baseline A's correct *type*
+identification ("downstream transactional store has lock contention") as
+a full match to the correct candidate, even though Baseline A never once
+named the actual dependency. Checking the raw hypothesis text directly
+with a simple string search instead of the judge tells a different story:
+
+| | Named the actual dependency by its real name |
+|---|---|
+| Baseline A (bare LLM) | **0/3** — always described it generically, e.g. *"downstream transactional store"*, *"downstream in-memory key-value store"*, *"downstream service-to-service calls"* |
+| Baseline E (full system) | **3/3** — always named it explicitly, e.g. *"lock contention on postgres database"*, *"Redis cache eviction spike"*, *"degraded latency to payment-service"* |
+
+This is the one clean, measured point in this entire evaluation where the
+architecture demonstrably does something a bare LLM call structurally
+cannot: commit to a specific, actionable diagnosis ("page the postgres
+on-call, look at the inventory-reconciliation job") instead of a
+type-correct-but-unnamed shrug ("something transactional is locked,
+somewhere"). It's a small probe (n=3) and a different kind of claim than
+"more accurate" — it's "more specific," which for an on-call engineer
+deciding who to page is arguably the more useful property.
 
 ## v2 Worked examples
 
