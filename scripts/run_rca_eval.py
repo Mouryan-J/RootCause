@@ -41,9 +41,8 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 from judge import judge_hypothesis
 
 from rootcause.agents.graph import run_analysis
-from rootcause.agents.rca import RETRY_NOTE
+from rootcause.agents.rca import RETRY_NOTE, RCAOutput
 from rootcause.agents.rca import SYSTEM_PROMPT as RCA_SYSTEM_PROMPT
-from rootcause.agents.rca import RCAOutput
 from rootcause.core.config import get_settings
 from rootcause.db.neo4j_client import close_neo4j, init_neo4j
 

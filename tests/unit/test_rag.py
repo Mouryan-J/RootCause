@@ -1,7 +1,13 @@
 import sys
 import types
 
-from rootcause.rag.retriever import MIN_RERANK_SCORE, HybridRetriever, RetrievalResult, _rrf, _tokenize
+from rootcause.rag.retriever import (
+    MIN_RERANK_SCORE,
+    HybridRetriever,
+    RetrievalResult,
+    _rrf,
+    _tokenize,
+)
 
 
 def test_tokenize_lowercases():
